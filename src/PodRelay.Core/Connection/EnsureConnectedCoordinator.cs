@@ -8,16 +8,19 @@ public sealed class EnsureConnectedCoordinator
     private readonly IConnectionPlatform platform;
     private readonly TimeSpan timeout;
     private readonly TimeSpan pollInterval;
+    private readonly TimeSpan reconnectRetryInterval;
     private Task<EnsureConnectionResult>? inFlight;
 
     public EnsureConnectedCoordinator(
         IConnectionPlatform platform,
         TimeSpan? timeout = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null,
+        TimeSpan? reconnectRetryInterval = null)
     {
         this.platform = platform;
         this.timeout = timeout ?? TimeSpan.FromSeconds(15);
         this.pollInterval = pollInterval ?? TimeSpan.FromMilliseconds(500);
+        this.reconnectRetryInterval = reconnectRetryInterval ?? TimeSpan.FromSeconds(1);
     }
 
     public event EventHandler<ConnectionState>? StateChanged;
@@ -119,13 +122,55 @@ public sealed class EnsureConnectedCoordinator
         }
 
         OnStateChanged(ConnectionState.Connecting);
-        var reconnect = await platform.RequestReconnectAsync(target, cancellationToken);
-        attempts.Add(new ConnectionAttempt(
-            "RequestBluetoothAudioReconnect",
-            reconnect.WasAccepted ? "Accepted" : "Rejected",
-            $"Requested {reconnect.RequestedEndpointCount} Bluetooth audio endpoint(s).",
-            stopwatch.Elapsed,
-            reconnect.HResults));
+        ReconnectRequestResult reconnect;
+        while (true)
+        {
+            reconnect = await platform.RequestReconnectAsync(target, cancellationToken);
+            var endpointPending = reconnect.RequestedEndpointCount == 0;
+            attempts.Add(new ConnectionAttempt(
+                "RequestBluetoothAudioReconnect",
+                endpointPending ? "Deferred" : reconnect.WasAccepted ? "Accepted" : "Rejected",
+                endpointPending
+                    ? "Windows has not exposed a Bluetooth audio endpoint yet; enumeration will be retried."
+                    : $"Requested {reconnect.RequestedEndpointCount} Bluetooth audio endpoint(s).",
+                stopwatch.Elapsed,
+                reconnect.HResults));
+            if (!endpointPending)
+            {
+                break;
+            }
+
+            if (stopwatch.Elapsed >= timeout)
+            {
+                attempts.Add(new ConnectionAttempt(
+                    "WaitForBluetoothAudioEndpoint",
+                    "TimedOut",
+                    DescribeObservation(observation),
+                    stopwatch.Elapsed));
+                return Result(
+                    ConnectionState.TimedOut,
+                    "Windows has not exposed the AirPods audio endpoint yet. Retry is safe after the earbuds wake or Windows refreshes the Bluetooth profile.",
+                    observation,
+                    reconnect,
+                    stopwatch,
+                    attempts);
+            }
+
+            var remaining = timeout - stopwatch.Elapsed;
+            var delay = remaining < reconnectRetryInterval ? remaining : reconnectRetryInterval;
+            await Task.Delay(delay, cancellationToken);
+            observation = await platform.ObserveAsync(target, cancellationToken);
+            if (observation.IsBluetoothConnected && observation.IsStereoEndpointActive)
+            {
+                attempts.Add(new ConnectionAttempt(
+                    "WaitForBluetoothAudioEndpoint",
+                    "Succeeded",
+                    "The AirPods became connected while Windows refreshed the audio endpoint.",
+                    stopwatch.Elapsed));
+                return await SelectAndVerifyAsync(target, observation, null, stopwatch, attempts, cancellationToken);
+            }
+        }
+
         if (!reconnect.WasAccepted)
         {
             return Result(ConnectionState.Failed, "Windows rejected the Bluetooth audio reconnect request.", observation, reconnect, stopwatch, attempts);

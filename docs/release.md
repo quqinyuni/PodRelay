@@ -13,4 +13,4 @@ The application ZIP includes `Start-PodRelay.cmd`, which detects the x64 .NET 8 
 
 PodRelay itself remains Authenticode-unsigned until the original author supplies a publicly trusted code-signing certificate with an accessible private key. GitHub provenance and SHA-256 prove source and file integrity, but they do not establish a Windows publisher identity or suppress SmartScreen.
 
-The 0.1.1 build passed 53 unit tests with zero warnings and zero errors. The app also completed an isolated real-controller test: while normal automation was disabled and AirPods were on iPhone, reconnecting the bound controller restored the full Windows audio invariant in 4.28 seconds.
+The 0.1.2 build passed 55 unit tests with zero warnings and zero errors. The app also completed an isolated real-controller test: while normal automation was disabled and AirPods were on iPhone, reconnecting the bound controller restored the full Windows audio invariant in 4.28 seconds.

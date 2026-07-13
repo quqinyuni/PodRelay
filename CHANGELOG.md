@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-07-13
+
+- Retry transient Windows Bluetooth audio-endpoint enumeration gaps within the existing connection timeout.
+- Distinguish “endpoint not exposed yet” from a real rejected reconnect request.
+
 ## 0.1.1 - 2026-07-13
 
 - MIT licensing with original-author attribution to quqinyuni.

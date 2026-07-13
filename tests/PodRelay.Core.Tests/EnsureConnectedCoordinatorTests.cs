@@ -127,6 +127,55 @@ public sealed class EnsureConnectedCoordinatorTests
     }
 
     [Fact]
+    public async Task MissingAudioEndpointIsRetriedAndThenConnects()
+    {
+        var platform = new FakePlatform
+        {
+            Observation = Observation(connected: false, active: false, isDefault: false),
+            EmptyReconnectResponses = 1,
+            ConnectOnReconnectCall = 2
+        };
+        var coordinator = new EnsureConnectedCoordinator(
+            platform,
+            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(1),
+            TimeSpan.FromMilliseconds(1));
+
+        var result = await coordinator.EnsureConnectedAsync(Target);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, platform.ReconnectCalls);
+        Assert.Contains(result.Attempts!, attempt =>
+            attempt.Stage == "RequestBluetoothAudioReconnect" && attempt.Outcome == "Deferred");
+        Assert.Contains(result.Attempts!, attempt =>
+            attempt.Stage == "RequestBluetoothAudioReconnect" && attempt.Outcome == "Accepted");
+    }
+
+    [Fact]
+    public async Task MissingAudioEndpointTimesOutWithAccurateRetryableMessage()
+    {
+        var platform = new FakePlatform
+        {
+            Observation = Observation(connected: false, active: false, isDefault: false),
+            EmptyReconnectResponses = int.MaxValue
+        };
+        var coordinator = new EnsureConnectedCoordinator(
+            platform,
+            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMilliseconds(1),
+            TimeSpan.FromMilliseconds(1));
+
+        var result = await coordinator.EnsureConnectedAsync(Target);
+
+        Assert.Equal(ConnectionState.TimedOut, result.State);
+        Assert.Contains("audio endpoint", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(platform.ReconnectCalls > 1);
+        Assert.All(
+            result.Attempts!.Where(attempt => attempt.Stage == "RequestBluetoothAudioReconnect"),
+            attempt => Assert.Equal("Deferred", attempt.Outcome));
+    }
+
+    [Fact]
     public async Task CancellationStopsAnInFlightReconnectAndAllowsRetry()
     {
         var platform = new FakePlatform
@@ -168,6 +217,8 @@ public sealed class EnsureConnectedCoordinatorTests
 
         public required ConnectionObservation Observation { get; set; }
         public bool BlockReconnect { get; init; }
+        public int EmptyReconnectResponses { get; init; }
+        public int? ConnectOnReconnectCall { get; init; }
         public int ReconnectCalls { get; private set; }
         public int SetDefaultCalls { get; private set; }
 
@@ -182,6 +233,16 @@ public sealed class EnsureConnectedCoordinatorTests
             if (BlockReconnect)
             {
                 await reconnectRelease.Task.WaitAsync(cancellationToken);
+            }
+
+            if (ReconnectCalls <= EmptyReconnectResponses)
+            {
+                return new ReconnectRequestResult(0, []);
+            }
+
+            if (ReconnectCalls == ConnectOnReconnectCall)
+            {
+                Observation = Observation(connected: true, active: true, isDefault: false);
             }
 
             return new ReconnectRequestResult(1, [0]);
