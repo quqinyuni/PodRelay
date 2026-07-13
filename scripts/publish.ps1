@@ -45,14 +45,26 @@ function New-DeterministicZip {
     }
 }
 
+function Copy-NormalizedTextFile {
+    param(
+        [Parameter(Mandatory)] [string] $SourcePath,
+        [Parameter(Mandatory)] [string] $DestinationPath
+    )
+
+    $utf8WithoutBom = [Text.UTF8Encoding]::new($false)
+    $text = [IO.File]::ReadAllText($SourcePath, [Text.Encoding]::UTF8)
+    $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    [IO.File]::WriteAllText($DestinationPath, $text, $utf8WithoutBom)
+}
+
 & $dotnet publish "$root\src\PodRelay.App\PodRelay.App.csproj" -c Release --self-contained false --no-restore -o $output --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & $dotnet publish "$root\src\PodRelay.Diagnostics\PodRelay.Diagnostics.csproj" -c Release --self-contained false --no-restore -o $diagnosticsOutput --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Copy-Item -LiteralPath "$root\installer\Start-PodRelay.cmd" -Destination $output -Force
-Copy-Item -LiteralPath "$root\installer\InstallRuntimeAndRun.ps1" -Destination $output -Force
+Copy-NormalizedTextFile -SourcePath "$root\installer\Start-PodRelay.cmd" -DestinationPath (Join-Path $output 'Start-PodRelay.cmd')
+Copy-NormalizedTextFile -SourcePath "$root\installer\InstallRuntimeAndRun.ps1" -DestinationPath (Join-Path $output 'InstallRuntimeAndRun.ps1')
 
 $signingThumbprint = $env:PODRELAY_SIGNING_THUMBPRINT
 if (-not [string]::IsNullOrWhiteSpace($signingThumbprint)) {
