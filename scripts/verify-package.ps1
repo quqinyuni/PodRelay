@@ -66,3 +66,4 @@ if ($LASTEXITCODE -ne 3) {
 
 Write-Host "Verified framework-dependent release package ($($entryNames.Count) entries)."
 Write-Host 'Verified launcher branches: runtime present = 0; runtime missing = 3.'
+exit 0
