@@ -38,5 +38,6 @@ This file distinguishes observed evidence from planned hardware checks. An unche
 - Clean Release rebuild after `dotnet clean`: passed with zero warnings and zero errors.
 - Unit tests: 55 passed, 0 failed, 0 skipped. This includes saved-target regressions, transient audio-endpoint enumeration recovery, independent AirPods in-ear bit decoding, media pause/resume and post-insertion settling policy, state-change duplicate handling, in-case suppression, fresh in-ear evidence windows, and independent controller relay with lock/cooldown behavior.
 - Framework-dependent `win-x64` application and diagnostics packages: created successfully.
+- Release-package guard verifies that the application ZIP contains the runtime launcher, declares .NET 8 Desktop Runtime, does not bundle CoreCLR/hostfxr/hostpolicy, detects an installed runtime with exit code 0, and reports a simulated missing runtime with exit code 3.
 - Packaged diagnostics smoke test: guarded disconnect returned exit code 2 without `--confirm`; connected/idempotent ensure returned exit code 0 and verified Stereo ACTIVE plus all three default-output roles.
 - Read-only target status command returned exit code 0 and verified the bound MAC/container, Bluetooth connected, Stereo ACTIVE, and default routing.
