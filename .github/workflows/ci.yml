@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            global.json
+
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore tests/PodRelay.Core.Tests/PodRelay.Core.Tests.csproj
+          dotnet restore src/PodRelay.App/PodRelay.App.csproj
+          dotnet restore src/PodRelay.Diagnostics/PodRelay.Diagnostics.csproj
+
+      - name: Run unit tests
+        run: dotnet test tests/PodRelay.Core.Tests/PodRelay.Core.Tests.csproj -c Release --no-restore --nologo
+
+      - name: Build release packages
+        shell: pwsh
+        run: ./scripts/publish.ps1
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: PodRelay-win-x64
+          path: |
+            artifacts/PodRelay-win-x64.zip
+            artifacts/PodRelay-Diagnostics-win-x64.zip
+          if-no-files-found: error
+
+      - name: Attest application package provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/PodRelay-win-x64.zip
