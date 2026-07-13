@@ -99,11 +99,22 @@ public partial class MainWindow : Window
         try
         {
             var devices = await discovery.GetPairedBluetoothDevicesAsync();
-            var audioContainers = await Task.Run(() => new WindowsBluetoothAudioController()
-                .GetAllEndpoints()
-                .Select(endpoint => endpoint.ContainerId)
-                .ToHashSet());
-            knownAudioContainers.UnionWith(audioContainers);
+            Exception? audioTopologyError = null;
+            try
+            {
+                var audioContainers = await Task.Run(() => new WindowsBluetoothAudioController()
+                    .GetAllEndpoints()
+                    .Select(endpoint => endpoint.ContainerId)
+                    .ToHashSet());
+                knownAudioContainers.UnionWith(audioContainers);
+            }
+            catch (Exception exception)
+            {
+                // Core Audio is only an enrichment source for this selector. Bluetooth
+                // names, stable AEP container IDs, and a saved target are still enough
+                // to let the user choose AirPods when an unrelated endpoint is stale.
+                audioTopologyError = exception;
+            }
             var choices = BluetoothAudioCandidateSelector.Select(
                 devices,
                 knownAudioContainers,
@@ -114,7 +125,9 @@ public partial class MainWindow : Window
                 choice.Address.Equals(settings.TargetAddress, StringComparison.OrdinalIgnoreCase));
             DeviceCombo.SelectedItem ??= choices.FirstOrDefault(choice =>
                 choice.Name.Contains("AirPods", StringComparison.OrdinalIgnoreCase));
-            StatusText.Text = $"找到 {choices.Count} 个蓝牙音频候选设备。";
+            StatusText.Text = audioTopologyError is null
+                ? $"找到 {choices.Count} 个蓝牙音频候选设备。"
+                : $"找到 {choices.Count} 个蓝牙音频候选设备；已忽略不可读取的旧音频端点（0x{audioTopologyError.HResult:X8}）。";
         }
         catch (Exception exception)
         {

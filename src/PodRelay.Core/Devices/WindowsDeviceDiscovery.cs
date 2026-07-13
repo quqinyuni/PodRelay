@@ -34,10 +34,7 @@ public sealed class WindowsDeviceDiscovery
     public async Task<IReadOnlyList<BluetoothDeviceSnapshot>> GetPairedBluetoothDevicesAsync()
     {
         var selector = BluetoothDevice.GetDeviceSelectorFromPairingState(true);
-        var deviceInformation = await DeviceInformation.FindAllAsync(
-            selector,
-            BluetoothProperties,
-            DeviceInformationKind.DeviceInterface);
+        var deviceInformation = await FindPairedDevicesAsync(selector);
 
         var snapshots = new List<BluetoothDeviceSnapshot>(deviceInformation.Count);
         foreach (var information in deviceInformation)
@@ -80,6 +77,28 @@ public sealed class WindowsDeviceDiscovery
         }
 
         return snapshots;
+    }
+
+    private static async Task<DeviceInformationCollection> FindPairedDevicesAsync(string selector)
+    {
+        try
+        {
+            return await DeviceInformation.FindAllAsync(
+                selector,
+                BluetoothProperties,
+                DeviceInformationKind.DeviceInterface);
+        }
+        catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
+        {
+            // DeviceInformation takes a snapshot. A paired device can disappear while
+            // Windows is materializing that snapshot, especially with cached Bluetooth
+            // records. Retry once so a single removal race does not empty the selector.
+            await Task.Delay(120);
+            return await DeviceInformation.FindAllAsync(
+                selector,
+                BluetoothProperties,
+                DeviceInformationKind.DeviceInterface);
+        }
     }
 
     public async Task<IReadOnlyList<AudioEndpointSnapshot>> GetAudioRenderEndpointsAsync()

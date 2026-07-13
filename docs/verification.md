@@ -6,6 +6,7 @@ This file distinguishes observed evidence from planned hardware checks. An unche
 |---|---|---|
 | Enumerate paired AirPods | Passed | WinRT returned the selected AirPods Pro 2 as paired and present. The hardware address is redacted from the public record. |
 | Device selector visibility and stable binding | Passed | User refreshed the final dark dropdown and confirmed `AirPods Pro2` remained present and selected alongside other paired headphones. Two regression tests preserve the saved target when live Core Audio or Bluetooth enumeration temporarily omits it. |
+| Stale Windows audio endpoint during selector refresh | Logic fixed; second-PC retest pending | A separate Windows 11 PC reported `0x80070002` while loading the selector, consistent with a cached Core Audio endpoint disappearing during topology access. Endpoint enumeration now skips removed/invalidated entries individually, retries one transient WinRT snapshot race, and treats Core Audio topology as optional selector enrichment so valid Bluetooth candidates remain visible. Error classification has automated coverage; the reporting PC still needs the updated build. |
 | Read Bluetooth radio state | Passed | Diagnostic snapshot returned `On`. |
 | Enumerate Stereo and Hands-Free endpoints | Passed | Core Audio topology associated both endpoints with the selected device container. The container identifier is redacted from the public record. |
 | Verify connected + Stereo ACTIVE | Passed | Hardware diagnostic verified both conditions. |
@@ -36,7 +37,7 @@ This file distinguishes observed evidence from planned hardware checks. An unche
 ## Latest automated run
 
 - Clean Release rebuild after `dotnet clean`: passed with zero warnings and zero errors.
-- Unit tests: 55 passed, 0 failed, 0 skipped. This includes saved-target regressions, transient audio-endpoint enumeration recovery, independent AirPods in-ear bit decoding, media pause/resume and post-insertion settling policy, state-change duplicate handling, in-case suppression, fresh in-ear evidence windows, and independent controller relay with lock/cooldown behavior.
+- Unit tests: 62 passed, 0 failed, 0 skipped. This includes saved-target regressions, stale/invalidated Windows endpoint classification, transient audio-endpoint enumeration recovery, independent AirPods in-ear bit decoding, media pause/resume and post-insertion settling policy, state-change duplicate handling, in-case suppression, fresh in-ear evidence windows, and independent controller relay with lock/cooldown behavior.
 - Framework-dependent `win-x64` application and diagnostics packages: created successfully.
 - Packaged diagnostics smoke test: guarded disconnect returned exit code 2 without `--confirm`; connected/idempotent ensure returned exit code 0 and verified Stereo ACTIVE plus all three default-output roles.
 - Read-only target status command returned exit code 0 and verified the bound MAC/container, Bluetooth connected, Stereo ACTIVE, and default routing.

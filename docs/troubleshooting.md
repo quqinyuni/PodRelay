@@ -4,6 +4,8 @@
 
 Pair AirPods once in Windows Bluetooth Settings, then select **Refresh paired devices**. PodRelay does not initiate first-time pairing and never removes a pairing.
 
+If an older build reports `0x80070002` while reading devices, update PodRelay and refresh again. This error can occur when Windows keeps a cached audio endpoint whose backing device has already disappeared. Current builds skip only that stale endpoint and continue listing the remaining paired Bluetooth headphones; they do not delete or repair Windows device records.
+
 ## “AirPods not found”
 
 Open the case or wear the earbuds. A closed sleeping case may not be connectable. If AirPods are in an active phone call, the other device may retain the audio profile.
@@ -23,4 +25,3 @@ Ordinary and borderless windows are supported. Exclusive-fullscreen games can co
 ## Export diagnostics
 
 Open settings and choose **Export diagnostics**. The ZIP contains only `%LOCALAPPDATA%\PodRelay`, including settings and local JSONL logs. Review or redact the Bluetooth address before sharing it.
-

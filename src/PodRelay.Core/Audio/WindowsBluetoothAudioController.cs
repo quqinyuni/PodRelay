@@ -3,6 +3,7 @@
 using System.Runtime.InteropServices;
 using System.Security;
 using Vanara.PInvoke;
+using PodRelay.Core.Devices;
 using static Vanara.PInvoke.CoreAudio;
 
 namespace PodRelay.Core.Audio;
@@ -78,83 +79,103 @@ public sealed class WindowsBluetoothAudioController
     private static IReadOnlyList<EndpointControl> EnumerateBluetoothAudioEndpoints()
     {
         var results = new List<EndpointControl>();
-        var enumerator = new IMMDeviceEnumerator();
-        var endpoints = enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.DEVICE_STATEMASK_ALL);
-
-        for (uint index = 0; index < endpoints.GetCount(); index++)
+        IMMDeviceEnumerator enumerator;
+        IMMDeviceCollection endpoints;
+        uint endpointCount;
+        try
         {
-            endpoints.Item(index, out var endpoint);
-            if (endpoint is null)
+            enumerator = new IMMDeviceEnumerator();
+            endpoints = enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.DEVICE_STATEMASK_ALL);
+            endpointCount = endpoints.GetCount();
+        }
+        catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
+        {
+            return results;
+        }
+
+        for (uint index = 0; index < endpointCount; index++)
+        {
+            try
             {
-                continue;
+                endpoints.Item(index, out var endpoint);
+                if (endpoint is null)
+                {
+                    continue;
+                }
+
+                var topology = Activate<IDeviceTopology>(endpoint);
+                if (topology is null)
+                {
+                    continue;
+                }
+
+                for (uint connectorIndex = 0; connectorIndex < topology.GetConnectorCount(); connectorIndex++)
+                {
+                    var connector = topology.GetConnector(connectorIndex);
+                    if (connector is null)
+                    {
+                        continue;
+                    }
+
+                    IPart connectedPart;
+                    try
+                    {
+                        connectedPart = (IPart)connector.GetConnectedTo();
+                    }
+                    catch (COMException)
+                    {
+                        continue;
+                    }
+
+                    if (connectedPart is null || connectedPart.GetTopologyObject() is not { } connectedTopology)
+                    {
+                        continue;
+                    }
+
+                    var connectedDeviceId = (string)connectedTopology.GetDeviceId();
+                    if (string.IsNullOrWhiteSpace(connectedDeviceId))
+                    {
+                        continue;
+                    }
+                    if (!connectedDeviceId.StartsWith(@"{2}.\\?\bth", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var connectedDevice = enumerator.GetDevice(connectedDeviceId);
+                    if (connectedDevice is null)
+                    {
+                        continue;
+                    }
+
+                    var ksControl = Activate<IKsControl>(connectedDevice);
+                    if (ksControl is null)
+                    {
+                        continue;
+                    }
+
+                    var propertyStore = endpoint.OpenPropertyStore(STGM.STGM_READ);
+                    if (propertyStore is null)
+                    {
+                        continue;
+                    }
+                    var name = (string)propertyStore.GetValue(DevicePropertyKeys.FriendlyName);
+                    var containerId = (Guid)propertyStore.GetValue(Ole32.PROPERTYKEY.System.Devices.ContainerId);
+                    var snapshot = new BluetoothAudioEndpoint(
+                        endpoint.GetId(),
+                        name,
+                        containerId,
+                        endpoint.GetState() == DEVICE_STATE.DEVICE_STATE_ACTIVE,
+                        name.Contains("Stereo", StringComparison.OrdinalIgnoreCase));
+
+                    results.Add(new EndpointControl(snapshot, ksControl));
+                }
             }
-
-            var topology = Activate<IDeviceTopology>(endpoint);
-            if (topology is null)
+            catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
             {
-                continue;
-            }
-
-            for (uint connectorIndex = 0; connectorIndex < topology.GetConnectorCount(); connectorIndex++)
-            {
-                var connector = topology.GetConnector(connectorIndex);
-                if (connector is null)
-                {
-                    continue;
-                }
-
-                IPart connectedPart;
-                try
-                {
-                    connectedPart = (IPart)connector.GetConnectedTo();
-                }
-                catch (COMException)
-                {
-                    continue;
-                }
-
-                if (connectedPart is null || connectedPart.GetTopologyObject() is not { } connectedTopology)
-                {
-                    continue;
-                }
-
-                var connectedDeviceId = (string)connectedTopology.GetDeviceId();
-                if (string.IsNullOrWhiteSpace(connectedDeviceId))
-                {
-                    continue;
-                }
-                if (!connectedDeviceId.StartsWith(@"{2}.\\?\bth", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var connectedDevice = enumerator.GetDevice(connectedDeviceId);
-                if (connectedDevice is null)
-                {
-                    continue;
-                }
-
-                var ksControl = Activate<IKsControl>(connectedDevice);
-                if (ksControl is null)
-                {
-                    continue;
-                }
-
-                var propertyStore = endpoint.OpenPropertyStore(STGM.STGM_READ);
-                if (propertyStore is null)
-                {
-                    continue;
-                }
-                var name = (string)propertyStore.GetValue(DevicePropertyKeys.FriendlyName);
-                var containerId = (Guid)propertyStore.GetValue(Ole32.PROPERTYKEY.System.Devices.ContainerId);
-                var snapshot = new BluetoothAudioEndpoint(
-                    endpoint.GetId(),
-                    name,
-                    containerId,
-                    endpoint.GetState() == DEVICE_STATE.DEVICE_STATE_ACTIVE,
-                    name.Contains("Stereo", StringComparison.OrdinalIgnoreCase));
-
-                results.Add(new EndpointControl(snapshot, ksControl));
+                // DEVICE_STATEMASK_ALL intentionally includes unplugged and cached
+                // endpoints. Windows can remove one between collection enumeration and
+                // topology/property access; skip only that stale entry.
             }
         }
 
