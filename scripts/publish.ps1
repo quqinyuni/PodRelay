@@ -11,6 +11,40 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_CLI_HOME = Join-Path $root '.dotnet-home'
 $env:NUGET_PACKAGES = Join-Path $root '.nuget-packages'
 
+function New-DeterministicZip {
+    param(
+        [Parameter(Mandatory)] [string] $SourceDirectory,
+        [Parameter(Mandatory)] [string] $DestinationPath
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $sourcePath = (Resolve-Path -LiteralPath $SourceDirectory).Path.TrimEnd('\')
+    $fixedTimestamp = [DateTimeOffset]::new(2000, 1, 1, 0, 0, 0, [TimeSpan]::Zero)
+    $fileStream = [IO.File]::Open($DestinationPath, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    $archive = [IO.Compression.ZipArchive]::new($fileStream, [IO.Compression.ZipArchiveMode]::Create, $false)
+    try {
+        foreach ($item in Get-ChildItem -LiteralPath $sourcePath -File -Recurse | Sort-Object FullName) {
+            $relativePath = $item.FullName.Substring($sourcePath.Length).TrimStart([char]'\', [char]'/').Replace('\', '/')
+            $entry = $archive.CreateEntry($relativePath, [IO.Compression.CompressionLevel]::Optimal)
+            $entry.LastWriteTime = $fixedTimestamp
+            $input = $item.OpenRead()
+            $outputStream = $entry.Open()
+            try {
+                $input.CopyTo($outputStream)
+            }
+            finally {
+                $outputStream.Dispose()
+                $input.Dispose()
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+        $fileStream.Dispose()
+    }
+}
+
 & $dotnet publish "$root\src\PodRelay.App\PodRelay.App.csproj" -c Release --self-contained false --no-restore -o $output --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -35,6 +69,6 @@ $package = Join-Path $root 'artifacts\PodRelay-win-x64.zip'
 $diagnosticsPackage = Join-Path $root 'artifacts\PodRelay-Diagnostics-win-x64.zip'
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package }
 if (Test-Path -LiteralPath $diagnosticsPackage) { Remove-Item -LiteralPath $diagnosticsPackage }
-Compress-Archive -Path "$output\*" -DestinationPath $package -CompressionLevel Optimal
-Compress-Archive -Path "$diagnosticsOutput\*" -DestinationPath $diagnosticsPackage -CompressionLevel Optimal
+New-DeterministicZip -SourceDirectory $output -DestinationPath $package
+New-DeterministicZip -SourceDirectory $diagnosticsOutput -DestinationPath $diagnosticsPackage
 exit 0
