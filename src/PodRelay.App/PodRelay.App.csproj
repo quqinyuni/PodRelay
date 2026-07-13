@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>PodRelay</AssemblyName>
+    <RootNamespace>PodRelay.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\airpods-app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PodRelay.Core\PodRelay.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Assets\airpods-icon.png" />
+    <None Remove="Assets\airpods-app.ico" />
+    <None Remove="Assets\airpods-app.png" />
+    <Resource Include="Assets\airpods-icon.png" />
+    <Resource Include="Assets\airpods-app.ico" />
+    <Resource Include="Assets\airpods-app.png" />
+  </ItemGroup>
+</Project>

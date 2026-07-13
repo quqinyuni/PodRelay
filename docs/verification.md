@@ -1,0 +1,41 @@
+# Verification matrix
+
+This file distinguishes observed evidence from planned hardware checks. An unchecked scenario must not be described as passed.
+
+| Scenario | Status | Evidence / next action |
+|---|---|---|
+| Enumerate paired AirPods | Passed | WinRT returned the selected AirPods Pro 2 as paired and present. The hardware address is redacted from the public record. |
+| Device selector visibility and stable binding | Passed | User refreshed the final dark dropdown and confirmed `AirPods Pro2` remained present and selected alongside other paired headphones. Two regression tests preserve the saved target when live Core Audio or Bluetooth enumeration temporarily omits it. |
+| Read Bluetooth radio state | Passed | Diagnostic snapshot returned `On`. |
+| Enumerate Stereo and Hands-Free endpoints | Passed | Core Audio topology associated both endpoints with the selected device container. The container identifier is redacted from the public record. |
+| Verify connected + Stereo ACTIVE | Passed | Hardware diagnostic verified both conditions. |
+| Verify default routing | Passed | AirPods Stereo was default for console, multimedia, and communications roles. |
+| Idempotent call while already connected | Passed | Coordinator returned success without a reconnect request in about 0.54 seconds. |
+| Reconnect kernel request accepted | Passed with qualification | One-shot request returned HRESULT 0, but AirPods were already connected before the measured request. |
+| Passive AirPods proximity watcher starts and receives | Passed with identity qualification | Packaged logic captured one Apple AirPods proximity frame at RSSI -76 dBm in a two-second real BLE scan. Apple frames do not expose a public stable identity, so target-specific open-case attribution remains pending. |
+| Paired but disconnected → connect | Passed | GUI Test connection observed Bluetooth disconnected and Stereo inactive, submitted one reconnect request (HRESULT 0), then verified Bluetooth connected, Stereo ACTIVE, and all output roles default in 2.79 seconds. |
+| AirPods connected to phone → Windows steals connection | Passed | With automatic relay enabled, user connected AirPods to the phone and made no Windows action. PodRelay detected `ConnectionLost`, automatically requested reconnect (HRESULT 0), then verified Bluetooth connected, Stereo ACTIVE, and all output roles default in 2.43 seconds. |
+| Closed case / open case / removed / worn | State and policy passed; final out-of-case visual confirmation pending | Real target frames covered `InEar`, closed `InCase`, open-lid `InCase`, and `OutOfCase`. Open lid with both earbuds inside produced no popup/connection. When out-of-case earbuds were moved to iPhone, `ConnectionLost` was suppressed for lack of a recent in-ear signal, Windows stayed disconnected, and an actionable prompt-only decision was logged (`ShouldConnect=false`, “not yet in an ear”). User visual confirmation of that popup remains. |
+| Bluetooth off | Logic tested; hardware pending | Automated test verifies no reconnect; physical radio toggle still required. |
+| Bluetooth connected but Stereo not active | Logic tested | Automated timeout returns AudioNotReady. Reproducing on hardware is nondeterministic. |
+| Concurrent rapid requests | Passed | Automated test proves callers share one reconnect operation. |
+| Cancellation during connection | Passed | Runtime popup cancellation stopped a real reconnect after Windows accepted the request; the result was `Cancelled`. A subsequent manual retry succeeded in 2.16 seconds. |
+| Release-to-other-device cooldown | Passed | Tray action entered a 30-minute cooldown; after the user manually connected from iOS, Windows remained disconnected for more than one minute despite continuous advertisements. The final action intentionally guarantees only “do not automatically reacquire”; the other device performs the transfer. |
+| Session lock/unlock | Passed | Runtime log recorded `session.locked` at 13:51:49 and no connection attempt during the locked interval. At 13:51:59 it recorded `session.unlocked`, immediately evaluated `SessionUnlocked`, and performed an idempotent full-invariant check. When the phone transfer became effective shortly afterward, `ConnectionLost` triggered a real reconnect that restored Bluetooth, Stereo ACTIVE, and all output roles in 1.61 seconds. |
+| App restart | Passed | With AirPods on iPhone and automatic relay enabled, launching PodRelay evaluated `ApplicationStarted`, automatically reconnected, and verified the full success invariant in 5.24 seconds without a manual Connect action. |
+| Windows restart | Pending manual verification | Requires enabling startup and rebooting/logging in. |
+| Global shortcut | Passed | User pressed `Ctrl+Alt+A`; runtime log recorded `hotkey.pressed`, and idempotent EnsureConnected verified the full success invariant in 0.17 seconds without reconnecting. |
+| Bound gamepad presence and forced reconnect | Passed | With advertisement/no-output automation explicitly disabled, AirPods were moved to iPhone and verified disconnected from Windows. Reconnecting the bound wireless controller was the sole trigger: PodRelay requested reconnect (HRESULT 0) and restored Bluetooth connected, Stereo ACTIVE, and all default-output roles in 4.28 seconds. The controller identity survived disconnect/reconnect; arrival/removal refreshes Settings automatically. A failed controller attempt also has bounded 3/10/30-second retries while the controller remains online. |
+| Steam Big Picture mapping | Documented; pending Big Picture verification | Map Guide+Y to the now hardware-verified global hotkey. Native controller presence can additionally trigger relay when the bound gamepad connects. |
+| Popup duplicate suppression and timeout | Runtime trigger/cancel/retry passed; final visual opinion pending | Real BLE advertising triggered the popup and B/cancel entered cooldown; retry then connected. A tested nearby-episode gate prevents continuous broadcasts from reopening it until the earbuds leave for 30 seconds or reconnect; popup closes after 10/3/8 seconds by state. |
+| Application and tray icon | Built and asset-verified; live taskbar/tray confirmation pending | Release executable exposes the generated AirPods icon instead of the generic WPF icon; MainWindow uses the same icon, and the notification area uses it with a small connection-state badge. Extracting the published executable icon returned the expected AirPods artwork. |
+| In-ear media pause/resume | Core behavior passed; post-resume settling fix pending retest | In a real playing-video test, removing both earbuds visibly paused playback and reinserting one visibly resumed it. After latency tuning, removal paused in under one second, but one later insertion appeared not to resume. Logs proved `PLAY` was delivered, then a two-to-one sensor fallback 2.18 seconds later immediately delivered another `PAUSE`. A three-second post-resume settling window now ignores that partial fallback while never suppressing a zero-pod transition; this fix is automated-tested but awaits the same hardware retest. The local stability delay is 180 ms; remaining delay depends on AirPods BLE advertising. |
+| Work PC with no other output | Implemented; pending work-PC verification | Five-second health check triggers auto relay when no render endpoint is active. |
+
+## Latest automated run
+
+- Clean Release rebuild after `dotnet clean`: passed with zero warnings and zero errors.
+- Unit tests: 53 passed, 0 failed, 0 skipped. This includes saved-target regressions, independent AirPods in-ear bit decoding, media pause/resume and post-insertion settling policy, state-change duplicate handling, in-case suppression, fresh in-ear evidence windows, and independent controller relay with lock/cooldown behavior.
+- Framework-dependent `win-x64` application and diagnostics packages: created successfully.
+- Packaged diagnostics smoke test: guarded disconnect returned exit code 2 without `--confirm`; connected/idempotent ensure returned exit code 0 and verified Stereo ACTIVE plus all three default-output roles.
+- Read-only target status command returned exit code 0 and verified the bound MAC/container, Bluetooth connected, Stereo ACTIVE, and default routing.

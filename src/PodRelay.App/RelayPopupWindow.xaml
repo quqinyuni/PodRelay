@@ -1,0 +1,74 @@
+<Window x:Class="PodRelay.App.RelayPopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PodRelay"
+        Width="840" Height="420"
+        WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False"
+        KeyDown="OnKeyDown"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+    <Border x:Name="RootBorder" CornerRadius="30" BorderBrush="#4DFFFFFF" BorderThickness="1"
+            Padding="30" VerticalAlignment="Center">
+        <Border.Effect>
+            <DropShadowEffect Color="#FF000000" BlurRadius="42" ShadowDepth="12" Opacity="0.62" />
+        </Border.Effect>
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FA11151D" Offset="0" />
+                <GradientStop Color="#FA1A202C" Offset="0.58" />
+                <GradientStop Color="#FA10131A" Offset="1" />
+            </LinearGradientBrush>
+        </Border.Background>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Width="270" Height="320" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Ellipse Width="236" Height="236" VerticalAlignment="Center" Opacity="0.9">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#4D79A9FF" Offset="0" />
+                            <GradientStop Color="#1479A9FF" Offset="0.62" />
+                            <GradientStop Color="#0079A9FF" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
+                <Ellipse Width="190" Height="190" VerticalAlignment="Center"
+                         Stroke="#3379A9FF" StrokeThickness="1" />
+
+                <Image Source="/PodRelay;component/Assets/airpods-icon.png"
+                       Width="268" Height="268" Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="16,10,6,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="AIRPODS RELAY" Foreground="#FF79A9FF" FontSize="11" FontWeight="Bold" />
+                    <TextBlock x:Name="TitleText" Text="AirPods 已在附近" Foreground="#FFF7F9FD"
+                               FontSize="34" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="MessageText" Text="按 Y 或确认键连接到这台电脑"
+                               Foreground="#FFAFB8C6" FontSize="17" LineHeight="25"
+                               Margin="0,11,0,0" TextWrapping="Wrap" />
+                    <ProgressBar x:Name="Progress" IsIndeterminate="True" Height="3"
+                                 Visibility="Collapsed" Margin="0,22,20,0"
+                                 Foreground="#FF79A9FF" Background="#FF2A3342" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,22,0,0">
+                    <Button x:Name="ConnectButton" Content="Y   连接" Click="OnConnect"
+                            MinWidth="150" Height="50" Style="{StaticResource PrimaryButton}" />
+                    <Button x:Name="CancelButton" Content="B   忽略" Click="OnCancel"
+                            MinWidth="132" Height="50" Margin="0" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

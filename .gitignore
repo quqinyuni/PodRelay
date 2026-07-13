@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+artifacts/
+logs/
+.dotnet-home/
+.nuget-packages/
+src/PodRelay.App/Assets/airpods-icon-source.png
+src/PodRelay.App/Assets/airpods-product.png
