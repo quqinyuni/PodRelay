@@ -57,6 +57,12 @@ function Copy-NormalizedTextFile {
     [IO.File]::WriteAllText($DestinationPath, $text, $utf8WithoutBom)
 }
 
+& $dotnet restore "$root\src\PodRelay.App\PodRelay.App.csproj" --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& $dotnet restore "$root\src\PodRelay.Diagnostics\PodRelay.Diagnostics.csproj" --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 & $dotnet publish "$root\src\PodRelay.App\PodRelay.App.csproj" -c Release --self-contained false --no-restore -o $output --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

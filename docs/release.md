@@ -1,10 +1,16 @@
-# Local release package
+# Release packages
 
-The current deliverables are framework-dependent Windows x64 packages. They require the .NET 8 Desktop Runtime and are not code-signed.
+PodRelay releases are built on GitHub Actions from the tagged public commit. The CI workflow runs the unit tests, creates the application and diagnostics ZIP files, uploads them as a workflow artifact, and produces a GitHub build-provenance attestation for the application package.
 
-| Artifact | SHA-256 |
-|---|---|
-| `artifacts\PodRelay-win-x64.zip` | `C73935D1ECE78790C5F4ABE030183CAA95E60CCF052CFD3BAA34820017054711` |
-| `artifacts\PodRelay-Diagnostics-win-x64.zip` | `A9FE07F3A42D0593A99678EF995224E8DC37567A874CBAD1A477A3E54DE4AC4A` |
+The corresponding workflow-generated files are uploaded unchanged to GitHub Releases:
 
-These SHA-256 hashes are for the 0.1.1 package built on 2026-07-13. Release archives use stable file ordering and fixed ZIP entry timestamps; two consecutive local publishes produced identical hashes. The build passed 53 unit tests with zero warnings and zero errors. The application package includes `Start-PodRelay.cmd`, which detects the x64 .NET 8 Desktop Runtime and, only with user confirmation, downloads the Microsoft installer, validates its Microsoft Authenticode signature, and requests installation. PodRelay itself remains Authenticode-unsigned until the original author supplies a trusted code-signing certificate; GitHub build provenance and SHA-256 provide integrity evidence but do not suppress SmartScreen. The app also completed an isolated real-controller test: while normal automation was disabled and AirPods were on iPhone, reconnecting the bound controller restored the full Windows audio invariant in 4.28 seconds.
+- `PodRelay-win-x64.zip`
+- `PodRelay-Diagnostics-win-x64.zip`
+
+GitHub displays a SHA-256 digest for every Release asset. The Release notes repeat those values for convenient offline verification. Fixed ZIP hashes are intentionally not committed to this file: changing a tracked hash changes the source commit that the package claims to represent.
+
+The application ZIP includes `Start-PodRelay.cmd`, which detects the x64 .NET 8 Desktop Runtime and, only with user confirmation, downloads the Microsoft installer, validates its Microsoft Authenticode signature, and requests installation.
+
+PodRelay itself remains Authenticode-unsigned until the original author supplies a publicly trusted code-signing certificate with an accessible private key. GitHub provenance and SHA-256 prove source and file integrity, but they do not establish a Windows publisher identity or suppress SmartScreen.
+
+The 0.1.1 build passed 53 unit tests with zero warnings and zero errors. The app also completed an isolated real-controller test: while normal automation was disabled and AirPods were on iPhone, reconnecting the bound controller restored the full Windows audio invariant in 4.28 seconds.
