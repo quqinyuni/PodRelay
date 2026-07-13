@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-07-13
+
+- MIT licensing with original-author attribution to quqinyuni.
+- Runtime-aware launcher that offers a verified Microsoft .NET 8 Desktop Runtime install when required.
+- Windows CI packaging, GitHub build-provenance attestation, and an Authenticode signing hook for a future trusted certificate.
+
 ## 0.1.0 - 2026-07-13
 
 First public release.
@@ -11,6 +17,3 @@ First public release.
 - Native controller-arrival relay and Steam Input global-shortcut workflow.
 - Original ten-foot connection popup, settings UI, tray status, and AirPods icons.
 - Local-only structured diagnostics and export.
-- MIT licensing with original-author attribution to quqinyuni.
-- Runtime-aware launcher that offers a verified Microsoft .NET 8 Desktop Runtime install when required.
-- Windows CI packaging, GitHub build-provenance attestation, and an Authenticode signing hook for a future trusted certificate.

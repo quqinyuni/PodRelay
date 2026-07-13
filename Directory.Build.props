@@ -7,9 +7,10 @@
     <NuGetAudit>false</NuGetAudit>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
+    <Version>0.1.1</Version>
+    <AssemblyVersion>0.1.1.0</AssemblyVersion>
+    <FileVersion>0.1.1.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>quqinyuni</Authors>
     <Copyright>Copyright © 2026 quqinyuni</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
