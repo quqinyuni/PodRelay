@@ -62,7 +62,7 @@ public partial class MainWindow : Window
     }
 
     public event EventHandler<AppSettings>? SettingsSaved;
-    public event EventHandler? TestConnectionRequested;
+    public event EventHandler<AppSettings>? TestConnectionRequested;
     public event EventHandler? PopupPreviewRequested;
     public event EventHandler? ExportDiagnosticsRequested;
 
@@ -93,17 +93,31 @@ public partial class MainWindow : Window
             : $"当前状态：{label} — {detail}";
     }
 
+    public void SetConfigurationRequired() =>
+        StatusText.Text = "请先选择一副已配对耳机；点击连接时会自动保存当前设置。";
+
     private async Task RefreshDevicesAsync()
     {
         StatusText.Text = "正在读取 Windows 已配对蓝牙设备…";
         try
         {
             var devices = await discovery.GetPairedBluetoothDevicesAsync();
-            var audioContainers = await Task.Run(() => new WindowsBluetoothAudioController()
-                .GetAllEndpoints()
-                .Select(endpoint => endpoint.ContainerId)
-                .ToHashSet());
-            knownAudioContainers.UnionWith(audioContainers);
+            Exception? audioTopologyError = null;
+            try
+            {
+                var audioContainers = await Task.Run(() => new WindowsBluetoothAudioController()
+                    .GetAllEndpoints()
+                    .Select(endpoint => endpoint.ContainerId)
+                    .ToHashSet());
+                knownAudioContainers.UnionWith(audioContainers);
+            }
+            catch (Exception exception)
+            {
+                // Core Audio is only an enrichment source for this selector. Bluetooth
+                // names, stable AEP container IDs, and a saved target are still enough
+                // to let the user choose AirPods when an unrelated endpoint is stale.
+                audioTopologyError = exception;
+            }
             var choices = BluetoothAudioCandidateSelector.Select(
                 devices,
                 knownAudioContainers,
@@ -114,7 +128,9 @@ public partial class MainWindow : Window
                 choice.Address.Equals(settings.TargetAddress, StringComparison.OrdinalIgnoreCase));
             DeviceCombo.SelectedItem ??= choices.FirstOrDefault(choice =>
                 choice.Name.Contains("AirPods", StringComparison.OrdinalIgnoreCase));
-            StatusText.Text = $"找到 {choices.Count} 个蓝牙音频候选设备。";
+            StatusText.Text = audioTopologyError is null
+                ? $"找到 {choices.Count} 个蓝牙音频候选设备。"
+                : $"找到 {choices.Count} 个蓝牙音频候选设备；已忽略不可读取的旧音频端点（0x{audioTopologyError.HResult:X8}）。";
         }
         catch (Exception exception)
         {
@@ -151,21 +167,34 @@ public partial class MainWindow : Window
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
+        if (!TryReadSettings(out var updated))
+        {
+            return;
+        }
+
+        settings = updated;
+        SettingsSaved?.Invoke(this, settings);
+        StatusText.Text = "设置已保存。";
+    }
+
+    private bool TryReadSettings(out AppSettings updated)
+    {
+        updated = settings;
         if (DeviceCombo.SelectedItem is not BluetoothAudioCandidate choice)
         {
             StatusText.Text = "请先选择一副已配对耳机。";
-            return;
+            return false;
         }
 
         var controllerChoice = ControllerCombo.SelectedItem as GameControllerChoice;
         if (ControllerRelayCheck.IsChecked == true && controllerChoice is null)
         {
             StatusText.Text = "请先连接并选择一个手柄，或关闭手柄接力。";
-            return;
+            return false;
         }
 
         var cooldown = int.TryParse(CooldownText.Text, out var parsed) ? Math.Clamp(parsed, 1, 1440) : 30;
-        settings = settings with
+        updated = settings with
         {
             TargetAddress = choice.Address,
             TargetContainerId = choice.ContainerId,
@@ -183,11 +212,20 @@ public partial class MainWindow : Window
             HotkeyModifiers = ModifiersText.Text.Trim(),
             HotkeyKey = HotkeyText.Text.Trim()
         };
-        SettingsSaved?.Invoke(this, settings);
-        StatusText.Text = "设置已保存。";
+        return true;
     }
 
-    private void OnTestConnection(object sender, RoutedEventArgs e) => TestConnectionRequested?.Invoke(this, EventArgs.Empty);
+    private void OnTestConnection(object sender, RoutedEventArgs e)
+    {
+        if (!TryReadSettings(out var updated))
+        {
+            return;
+        }
+
+        settings = updated;
+        StatusText.Text = "正在保存设置并连接…";
+        TestConnectionRequested?.Invoke(this, settings);
+    }
 
     private void OnPreviewPopup(object sender, RoutedEventArgs e) => PopupPreviewRequested?.Invoke(this, EventArgs.Empty);
 

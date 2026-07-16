@@ -87,9 +87,13 @@ public partial class App : System.Windows.Application
         settingsWindow.SettingsSaved += async (_, updated) => await RunGuardedAsync(
             "settings.apply.failed",
             () => ApplySettingsAsync(updated));
-        settingsWindow.TestConnectionRequested += async (_, _) => await RunGuardedAsync(
+        settingsWindow.TestConnectionRequested += async (_, updated) => await RunGuardedAsync(
             "settings.test.failed",
-            () => EnsureConnectedAsync(automatic: false));
+            async () =>
+            {
+                await ApplySettingsAsync(updated);
+                await EnsureConnectedAsync(automatic: false);
+            });
         settingsWindow.PopupPreviewRequested += (_, _) =>
             popup.ShowNearby(settings.GetTarget()?.DisplayName ?? "AirPods Pro");
         settingsWindow.ExportDiagnosticsRequested += (_, _) => ExportDiagnostics();
@@ -193,6 +197,7 @@ public partial class App : System.Windows.Application
         var target = settings.GetTarget();
         if (target is null)
         {
+            settingsWindow.SetConfigurationRequired();
             ShowSettings();
             return;
         }

@@ -7,9 +7,24 @@ $dotnet = if (Test-Path 'C:\tmp\podrelay-dotnet\dotnet.exe') {
 $root = Resolve-Path "$PSScriptRoot\.."
 $output = Join-Path $root 'artifacts\publish\win-x64'
 $diagnosticsOutput = Join-Path $root 'artifacts\diagnostics\win-x64'
+$artifactsRoot = [IO.Path]::GetFullPath((Join-Path $root 'artifacts'))
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_CLI_HOME = Join-Path $root '.dotnet-home'
 $env:NUGET_PACKAGES = Join-Path $root '.nuget-packages'
+
+function Reset-PublishDirectory {
+    param([Parameter(Mandatory)] [string] $Path)
+
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $allowedPrefix = $artifactsRoot.TrimEnd([char]'\', [char]'/') + [IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($allowedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean a publish directory outside the artifacts root: $fullPath"
+    }
+
+    if (Test-Path -LiteralPath $fullPath) {
+        Remove-Item -LiteralPath $fullPath -Recurse -Force
+    }
+}
 
 function New-DeterministicZip {
     param(
@@ -56,6 +71,9 @@ function Copy-NormalizedTextFile {
     $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
     [IO.File]::WriteAllText($DestinationPath, $text, $utf8WithoutBom)
 }
+
+Reset-PublishDirectory -Path $output
+Reset-PublishDirectory -Path $diagnosticsOutput
 
 & $dotnet restore "$root\src\PodRelay.App\PodRelay.App.csproj" --nologo
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

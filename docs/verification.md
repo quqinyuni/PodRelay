@@ -6,6 +6,8 @@ This file distinguishes observed evidence from planned hardware checks. An unche
 |---|---|---|
 | Enumerate paired AirPods | Passed | WinRT returned the selected AirPods Pro 2 as paired and present. The hardware address is redacted from the public record. |
 | Device selector visibility and stable binding | Passed | User refreshed the final dark dropdown and confirmed `AirPods Pro2` remained present and selected alongside other paired headphones. Two regression tests preserve the saved target when live Core Audio or Bluetooth enumeration temporarily omits it. |
+| Stale Windows audio endpoint during selector refresh | Logic fixed; second-PC retest pending | A separate Windows 11 PC reported `0x80070002` while loading the selector, consistent with a cached Core Audio endpoint disappearing during topology access. Endpoint enumeration now skips removed/invalidated entries individually, retries one transient WinRT snapshot race, and treats Core Audio topology as optional selector enrichment so valid Bluetooth candidates remain visible. Error classification has automated coverage; the reporting PC still needs the updated build. |
+| Windows 11 unified A2DP/HFP render endpoint | Passed | On Windows build 26200, the localized `耳机 (AirPods Pro2)` endpoint was classified from the A2DP service class and Headphones form factor. An idempotent check completed in 0.22 seconds; a real one-shot disconnect made the endpoint inactive, then reconnect restored ACTIVE plus all default roles in 0.94 seconds. No friendly-name matching was used. |
 | Read Bluetooth radio state | Passed | Diagnostic snapshot returned `On`. |
 | Enumerate Stereo and Hands-Free endpoints | Passed | Core Audio topology associated both endpoints with the selected device container. The container identifier is redacted from the public record. |
 | Verify connected + Stereo ACTIVE | Passed | Hardware diagnostic verified both conditions. |
@@ -36,7 +38,8 @@ This file distinguishes observed evidence from planned hardware checks. An unche
 ## Latest automated run
 
 - Clean Release rebuild after `dotnet clean`: passed with zero warnings and zero errors.
-- Unit tests: 55 passed, 0 failed, 0 skipped. This includes saved-target regressions, transient audio-endpoint enumeration recovery, independent AirPods in-ear bit decoding, media pause/resume and post-insertion settling policy, state-change duplicate handling, in-case suppression, fresh in-ear evidence windows, and independent controller relay with lock/cooldown behavior.
+- Unit tests: 68 passed, 0 failed, 0 skipped. This includes Windows 10 split A2DP/HFP selection, Windows 11 unified endpoints, localized friendly names, missing vendor metadata, ambiguous stale endpoints, saved-target regressions, transient audio-endpoint enumeration recovery, AirPods in-ear policy, and controller relay behavior.
 - Framework-dependent `win-x64` application and diagnostics packages: created successfully.
-- Packaged diagnostics smoke test: guarded disconnect returned exit code 2 without `--confirm`; connected/idempotent ensure returned exit code 0 and verified Stereo ACTIVE plus all three default-output roles.
-- Read-only target status command returned exit code 0 and verified the bound MAC/container, Bluetooth connected, Stereo ACTIVE, and default routing.
+- Release-package guard verifies that the application ZIP contains the runtime launcher, declares .NET 8 Desktop Runtime, does not bundle CoreCLR/hostfxr/hostpolicy, detects installed/missing runtime branches, and confirms that application, Core, diagnostics, and dependency-manifest versions are all 0.1.3.
+- Packaged diagnostics smoke test: connected/idempotent ensure returned exit code 0 and verified the selected Bluetooth render endpoint ACTIVE plus all three default-output roles.
+- Read-only target status command returned exit code 0 and verified the bound MAC/container, Bluetooth connected, the Windows 11 unified render endpoint ACTIVE, and default routing.

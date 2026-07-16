@@ -1,6 +1,7 @@
 #nullable disable
 
 using System.Runtime.InteropServices;
+using PodRelay.Core.Devices;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.CoreAudio;
 
@@ -15,42 +16,61 @@ public sealed class WindowsDefaultAudioController
 {
     public IReadOnlyList<CoreAudioRenderEndpoint> GetRenderEndpoints()
     {
-        var enumerator = new IMMDeviceEnumerator();
+        var results = new List<CoreAudioRenderEndpoint>();
+        IMMDeviceEnumerator enumerator;
+        IMMDeviceCollection collection;
+        uint endpointCount;
+        try
+        {
+            enumerator = new IMMDeviceEnumerator();
+            collection = enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.DEVICE_STATEMASK_ALL);
+            endpointCount = collection.GetCount();
+        }
+        catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
+        {
+            return results;
+        }
+
         var defaults = new Dictionary<AudioRole, string>
         {
             [AudioRole.Console] = TryGetDefaultId(enumerator, ERole.eConsole),
             [AudioRole.Multimedia] = TryGetDefaultId(enumerator, ERole.eMultimedia),
             [AudioRole.Communications] = TryGetDefaultId(enumerator, ERole.eCommunications)
         };
-        var collection = enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.DEVICE_STATEMASK_ALL);
-        var results = new List<CoreAudioRenderEndpoint>();
 
-        for (uint index = 0; index < collection.GetCount(); index++)
+        for (uint index = 0; index < endpointCount; index++)
         {
-            collection.Item(index, out var endpoint);
-            if (endpoint is null)
+            try
             {
-                continue;
-            }
+                collection.Item(index, out var endpoint);
+                if (endpoint is null)
+                {
+                    continue;
+                }
 
-            var id = endpoint.GetId();
-            var store = endpoint.OpenPropertyStore(STGM.STGM_READ);
-            if (string.IsNullOrWhiteSpace(id) || store is null)
+                var id = endpoint.GetId();
+                var store = endpoint.OpenPropertyStore(STGM.STGM_READ);
+                if (string.IsNullOrWhiteSpace(id) || store is null)
+                {
+                    continue;
+                }
+
+                var name = TryGetProperty(store, DevicePropertyKeys.FriendlyName)?.ToString() ?? id;
+                var containerValue = TryGetProperty(store, Ole32.PROPERTYKEY.System.Devices.ContainerId);
+                var containerId = containerValue is Guid guid ? guid : Guid.Empty;
+                results.Add(new CoreAudioRenderEndpoint(
+                    id,
+                    name,
+                    containerId,
+                    FormatState(endpoint.GetState()),
+                    id == defaults[AudioRole.Console],
+                    id == defaults[AudioRole.Multimedia],
+                    id == defaults[AudioRole.Communications]));
+            }
+            catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
             {
-                continue;
+                // Ignore a stale endpoint without hiding the remaining render devices.
             }
-
-            var name = TryGetProperty(store, DevicePropertyKeys.FriendlyName)?.ToString() ?? id;
-            var containerValue = TryGetProperty(store, Ole32.PROPERTYKEY.System.Devices.ContainerId);
-            var containerId = containerValue is Guid guid ? guid : Guid.Empty;
-            results.Add(new CoreAudioRenderEndpoint(
-                id,
-                name,
-                containerId,
-                FormatState(endpoint.GetState()),
-                id == defaults[AudioRole.Console],
-                id == defaults[AudioRole.Multimedia],
-                id == defaults[AudioRole.Communications]));
         }
 
         return results;
@@ -80,7 +100,8 @@ public sealed class WindowsDefaultAudioController
         {
             return enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, role)?.GetId();
         }
-        catch (COMException)
+        catch (Exception exception) when (
+            exception is COMException || WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
         {
             return null;
         }
@@ -101,7 +122,8 @@ public sealed class WindowsDefaultAudioController
         {
             return store.GetValue(key);
         }
-        catch (COMException)
+        catch (Exception exception) when (
+            exception is COMException || WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
         {
             return null;
         }
