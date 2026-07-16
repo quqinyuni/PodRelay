@@ -12,7 +12,7 @@ Open the case or wear the earbuds. A closed sleeping case may not be connectable
 
 ## Bluetooth connected but audio not ready
 
-PodRelay requires the high-quality endpoint whose name contains `Stereo`. It deliberately does not accept Hands-Free AG Audio as success. Wait a few seconds and retry; export diagnostics if the Stereo endpoint remains Unplugged/NotPresent.
+PodRelay binds audio endpoints by the Bluetooth association container and uses language-independent Windows metadata to choose the render endpoint. On Windows 10 it prefers the A2DP/headphones endpoint over the separate hands-free endpoint. On Windows 11 it accepts the single render endpoint that Windows unifies across A2DP and HFP. Wait a few seconds and retry; export diagnostics if the selected audio endpoint remains Unplugged/NotPresent.
 
 ## Shortcut registration failed
 

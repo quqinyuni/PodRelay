@@ -111,12 +111,12 @@ public sealed class EnsureConnectedCoordinator
             return Result(ConnectionState.DeviceUnavailable, "The selected paired device is unavailable.", observation, null, stopwatch, attempts);
         }
 
-        if (observation.IsBluetoothConnected && observation.IsStereoEndpointActive)
+        if (observation.IsBluetoothConnected && observation.IsAudioEndpointActive)
         {
             attempts.Add(new ConnectionAttempt(
                 "UseExistingConnection",
                 "Succeeded",
-                "Bluetooth and the Stereo endpoint were already active; reconnect was skipped.",
+                "Bluetooth and the audio render endpoint were already active; reconnect was skipped.",
                 stopwatch.Elapsed));
             return await SelectAndVerifyAsync(target, observation, null, stopwatch, attempts, cancellationToken);
         }
@@ -160,7 +160,7 @@ public sealed class EnsureConnectedCoordinator
             var delay = remaining < reconnectRetryInterval ? remaining : reconnectRetryInterval;
             await Task.Delay(delay, cancellationToken);
             observation = await platform.ObserveAsync(target, cancellationToken);
-            if (observation.IsBluetoothConnected && observation.IsStereoEndpointActive)
+            if (observation.IsBluetoothConnected && observation.IsAudioEndpointActive)
             {
                 attempts.Add(new ConnectionAttempt(
                     "WaitForBluetoothAudioEndpoint",
@@ -182,12 +182,12 @@ public sealed class EnsureConnectedCoordinator
             await Task.Delay(pollInterval, cancellationToken);
             observation = await platform.ObserveAsync(target, cancellationToken);
 
-            if (observation.IsBluetoothConnected && observation.IsStereoEndpointActive)
+            if (observation.IsBluetoothConnected && observation.IsAudioEndpointActive)
             {
                 attempts.Add(new ConnectionAttempt(
-                    "WaitForStereoEndpoint",
+                    "WaitForAudioEndpoint",
                     "Succeeded",
-                    "Bluetooth connected and the Stereo render endpoint became ACTIVE.",
+                    "Bluetooth connected and the audio render endpoint became ACTIVE.",
                     stopwatch.Elapsed));
                 return await SelectAndVerifyAsync(target, observation, reconnect, stopwatch, attempts, cancellationToken);
             }
@@ -199,14 +199,14 @@ public sealed class EnsureConnectedCoordinator
         }
 
         attempts.Add(new ConnectionAttempt(
-            "WaitForStereoEndpoint",
+            "WaitForAudioEndpoint",
             "TimedOut",
             DescribeObservation(observation),
             stopwatch.Elapsed));
         return Result(
             observation.IsBluetoothConnected ? ConnectionState.AudioNotReady : ConnectionState.TimedOut,
             observation.IsBluetoothConnected
-                ? "Bluetooth connected, but the stereo audio endpoint did not become active."
+                ? "Bluetooth connected, but the audio render endpoint did not become active."
                 : "Connection timed out. The earbuds may be asleep, in the closed case, or in use by another device; retry is safe.",
             observation,
             reconnect,
@@ -222,33 +222,33 @@ public sealed class EnsureConnectedCoordinator
         List<ConnectionAttempt> attempts,
         CancellationToken cancellationToken)
     {
-        if (observation.StereoEndpointId is null)
+        if (observation.AudioEndpointId is null)
         {
-            return Result(ConnectionState.AudioNotReady, "No stereo render endpoint was found.", observation, reconnect, stopwatch, attempts);
+            return Result(ConnectionState.AudioNotReady, "No Bluetooth audio render endpoint was found.", observation, reconnect, stopwatch, attempts);
         }
 
-        if (!observation.IsStereoDefaultForAllRoles)
+        if (!observation.IsAudioDefaultForAllRoles)
         {
-            await platform.SetDefaultOutputAsync(observation.StereoEndpointId, cancellationToken);
+            await platform.SetDefaultOutputAsync(observation.AudioEndpointId, cancellationToken);
             attempts.Add(new ConnectionAttempt(
-                "SelectDefaultStereoOutput",
+                "SelectDefaultAudioOutput",
                 "Requested",
-                "Selected the AirPods Stereo endpoint for console, multimedia, and communications roles.",
+                "Selected the AirPods audio endpoint for console, multimedia, and communications roles.",
                 stopwatch.Elapsed));
             observation = await platform.ObserveAsync(target, cancellationToken);
         }
         else
         {
             attempts.Add(new ConnectionAttempt(
-                "SelectDefaultStereoOutput",
+                "SelectDefaultAudioOutput",
                 "Skipped",
-                "The AirPods Stereo endpoint was already default for all output roles.",
+                "The AirPods audio endpoint was already default for all output roles.",
                 stopwatch.Elapsed));
         }
 
         if (!observation.IsFullyConnected)
         {
-            return Result(ConnectionState.AudioNotReady, "The stereo endpoint is active but output routing could not be verified.", observation, reconnect, stopwatch, attempts);
+            return Result(ConnectionState.AudioNotReady, "The audio endpoint is active but output routing could not be verified.", observation, reconnect, stopwatch, attempts);
         }
 
         attempts.Add(new ConnectionAttempt(
@@ -274,8 +274,8 @@ public sealed class EnsureConnectedCoordinator
     private static string DescribeObservation(ConnectionObservation observation) =>
         $"BluetoothOn={observation.IsBluetoothOn}; DeviceFound={observation.IsDeviceFound}; " +
         $"Present={observation.IsDevicePresent}; Paired={observation.IsPaired}; " +
-        $"BluetoothConnected={observation.IsBluetoothConnected}; StereoActive={observation.IsStereoEndpointActive}; " +
-        $"StereoDefaultAllRoles={observation.IsStereoDefaultForAllRoles}.";
+        $"BluetoothConnected={observation.IsBluetoothConnected}; AudioActive={observation.IsAudioEndpointActive}; " +
+        $"AudioDefaultAllRoles={observation.IsAudioDefaultForAllRoles}.";
 
     private void OnStateChanged(ConnectionState state) => StateChanged?.Invoke(this, state);
 }

@@ -123,7 +123,7 @@ public sealed class EnsureConnectedCoordinatorTests
         Assert.Contains(result.Attempts!, attempt =>
             attempt.Stage == "RequestBluetoothAudioReconnect" && attempt.Outcome == "Accepted");
         Assert.Contains(result.Attempts!, attempt =>
-            attempt.Stage == "WaitForStereoEndpoint" && attempt.Outcome == "TimedOut");
+            attempt.Stage == "WaitForAudioEndpoint" && attempt.Outcome == "TimedOut");
     }
 
     [Fact]
@@ -206,9 +206,9 @@ public sealed class EnsureConnectedCoordinatorTests
             IsDevicePresent: true,
             IsPaired: true,
             IsBluetoothConnected: connected,
-            StereoEndpointId: "stereo-endpoint",
-            IsStereoEndpointActive: active,
-            IsStereoDefaultForAllRoles: isDefault);
+            AudioEndpointId: "audio-endpoint",
+            IsAudioEndpointActive: active,
+            IsAudioDefaultForAllRoles: isDefault);
 
     private sealed class FakePlatform : IConnectionPlatform
     {
@@ -251,7 +251,7 @@ public sealed class EnsureConnectedCoordinatorTests
         public Task SetDefaultOutputAsync(string endpointId, CancellationToken cancellationToken)
         {
             SetDefaultCalls++;
-            Observation = Observation with { IsStereoDefaultForAllRoles = true };
+            Observation = Observation with { IsAudioDefaultForAllRoles = true };
             return Task.CompletedTask;
         }
 

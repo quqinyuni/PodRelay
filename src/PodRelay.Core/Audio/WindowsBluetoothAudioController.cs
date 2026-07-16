@@ -56,8 +56,12 @@ public sealed class WindowsBluetoothAudioController
             return [];
         }
 
-        var preferred = endpoints.Where(endpoint => endpoint.Snapshot.IsStereo).ToArray();
-        var selected = preferred.Length > 0 ? preferred : endpoints;
+        var renderEndpoint = BluetoothRenderEndpointSelector.Select(
+            endpoints.Select(endpoint => endpoint.Snapshot).ToArray());
+        var selected = renderEndpoint is not null &&
+            (renderEndpoint.IsHighQualityRender || endpoints.Length == 1)
+                ? endpoints.Where(endpoint => endpoint.Snapshot.Id == renderEndpoint.Id).ToArray()
+                : endpoints;
 
         return selected.Select(endpoint =>
         {
@@ -166,7 +170,8 @@ public sealed class WindowsBluetoothAudioController
                         name,
                         containerId,
                         endpoint.GetState() == DEVICE_STATE.DEVICE_STATE_ACTIVE,
-                        name.Contains("Stereo", StringComparison.OrdinalIgnoreCase));
+                        GetBluetoothAudioProfile(connectedDeviceId),
+                        GetEndpointFormFactor(propertyStore));
 
                     results.Add(new EndpointControl(snapshot, ksControl));
                 }
@@ -205,10 +210,53 @@ public sealed class WindowsBluetoothAudioController
 
     private sealed record EndpointControl(BluetoothAudioEndpoint Snapshot, IKsControl KsControl);
 
+    private static BluetoothAudioProfile GetBluetoothAudioProfile(string deviceId)
+    {
+        if (deviceId.Contains(BluetoothServiceClass.AudioSink, StringComparison.OrdinalIgnoreCase))
+        {
+            return BluetoothAudioProfile.A2dp;
+        }
+
+        if (deviceId.Contains(BluetoothServiceClass.HandsFree, StringComparison.OrdinalIgnoreCase) ||
+            deviceId.Contains(BluetoothServiceClass.Headset, StringComparison.OrdinalIgnoreCase) ||
+            deviceId.Contains("bthhfenum", StringComparison.OrdinalIgnoreCase))
+        {
+            return BluetoothAudioProfile.HandsFree;
+        }
+
+        return BluetoothAudioProfile.Unknown;
+    }
+
+    private static AudioEndpointFormFactor GetEndpointFormFactor(PropSys.IPropertyStore propertyStore)
+    {
+        try
+        {
+            var rawValue = propertyStore.GetValue(DevicePropertyKeys.FormFactor);
+            var numericValue = Convert.ToInt32(rawValue, System.Globalization.CultureInfo.InvariantCulture);
+            var formFactor = (AudioEndpointFormFactor)numericValue;
+            return Enum.IsDefined(formFactor) ? formFactor : AudioEndpointFormFactor.Unknown;
+        }
+        catch (Exception exception) when (
+            exception is COMException or InvalidCastException or FormatException or OverflowException)
+        {
+            return AudioEndpointFormFactor.Unknown;
+        }
+    }
+
+    private static class BluetoothServiceClass
+    {
+        public const string AudioSink = "0000110b-0000-1000-8000-00805f9b34fb";
+        public const string Headset = "00001108-0000-1000-8000-00805f9b34fb";
+        public const string HandsFree = "0000111e-0000-1000-8000-00805f9b34fb";
+    }
+
     private static class DevicePropertyKeys
     {
         public static readonly Ole32.PROPERTYKEY FriendlyName =
             new(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14u);
+
+        public static readonly Ole32.PROPERTYKEY FormFactor =
+            new(new Guid("1da5d803-d492-4edd-8c23-e0c0ffee7f0e"), 0u);
     }
 
     [Flags]

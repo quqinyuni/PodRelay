@@ -6,10 +6,10 @@ public sealed record ConnectionObservation(
     bool IsDevicePresent,
     bool IsPaired,
     bool IsBluetoothConnected,
-    string? StereoEndpointId,
-    bool IsStereoEndpointActive,
-    bool IsStereoDefaultForAllRoles)
+    string? AudioEndpointId,
+    bool IsAudioEndpointActive,
+    bool IsAudioDefaultForAllRoles)
 {
     public bool IsFullyConnected =>
-        IsBluetoothConnected && IsStereoEndpointActive && IsStereoDefaultForAllRoles;
+        IsBluetoothConnected && IsAudioEndpointActive && IsAudioDefaultForAllRoles;
 }

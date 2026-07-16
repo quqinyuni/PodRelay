@@ -10,7 +10,7 @@ The implementation uses C# and .NET 8 on Windows 10 build 19041 or newer. WPF is
 
 1. **Discovery** enumerates paired Bluetooth association endpoints, decodes the public model/status portion of Apple Proximity Pairing advertisements, and observes Windows raw game-controller arrival events. Advertisement state changes bypass duplicate suppression so a quick case-to-ear transition is not lost.
 2. **Connection adapters** use a layered path: reuse a verified existing connection; otherwise request one-shot Bluetooth-audio reconnect; wait for Stereo ACTIVE; select all three default-output roles; finally re-observe the complete success invariant. Each layer produces a structured `ConnectionAttempt`. Experimental or version-sensitive mechanisms remain isolated behind an adapter interface.
-3. **Audio** enumerates Core Audio endpoints, verifies that the selected stereo endpoint is active, applies output routing, and sends distinct Windows `APPCOMMAND_MEDIA_PAUSE` / `APPCOMMAND_MEDIA_PLAY` commands for opt-in in-ear control.
+3. **Audio** enumerates Core Audio endpoints, selects the target render endpoint from Bluetooth profile and form-factor metadata, verifies that it is active, applies output routing, and sends distinct Windows `APPCOMMAND_MEDIA_PAUSE` / `APPCOMMAND_MEDIA_PLAY` commands for opt-in in-ear control. This supports both Windows 10's separate A2DP/HFP endpoints and Windows 11's unified render endpoint without relying on localized friendly names.
 4. **Orchestration** owns the idempotent `EnsureConnected` operation, cancellation, single-flight concurrency, backoff, cooldown, and session-lock policy.
 5. **Presentation** contains the tray UI, settings, global hotkey, and Apple TV-inspired popup.
 

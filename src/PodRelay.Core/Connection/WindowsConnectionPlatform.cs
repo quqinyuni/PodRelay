@@ -19,11 +19,11 @@ public sealed class WindowsConnectionPlatform : IConnectionPlatform
         var devices = await discovery.GetPairedBluetoothDevicesAsync();
         var device = devices.SingleOrDefault(candidate =>
             candidate.FormattedAddress.Equals(target.BluetoothAddress, StringComparison.OrdinalIgnoreCase));
-        var stereo = bluetoothAudio.GetEndpoints(target.ContainerId)
-            .FirstOrDefault(endpoint => endpoint.IsStereo);
-        var routedStereo = stereo is null
+        var audioEndpoint = BluetoothRenderEndpointSelector.Select(
+            bluetoothAudio.GetEndpoints(target.ContainerId));
+        var routedAudioEndpoint = audioEndpoint is null
             ? null
-            : defaultAudio.GetRenderEndpoints().SingleOrDefault(endpoint => endpoint.Id == stereo.Id);
+            : defaultAudio.GetRenderEndpoints().SingleOrDefault(endpoint => endpoint.Id == audioEndpoint.Id);
 
         return new ConnectionObservation(
             radioState == RadioState.On,
@@ -31,12 +31,12 @@ public sealed class WindowsConnectionPlatform : IConnectionPlatform
             device?.IsPresent == true,
             device?.IsPaired == true,
             device?.IsConnected == true,
-            stereo?.Id,
-            stereo?.IsActive == true,
-            routedStereo is not null &&
-                routedStereo.IsConsoleDefault &&
-                routedStereo.IsMultimediaDefault &&
-                routedStereo.IsCommunicationsDefault);
+            audioEndpoint?.Id,
+            audioEndpoint?.IsActive == true,
+            routedAudioEndpoint is not null &&
+                routedAudioEndpoint.IsConsoleDefault &&
+                routedAudioEndpoint.IsMultimediaDefault &&
+                routedAudioEndpoint.IsCommunicationsDefault);
     }
 
     public Task<ReconnectRequestResult> RequestReconnectAsync(
