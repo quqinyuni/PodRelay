@@ -6,7 +6,8 @@ public sealed record BluetoothAudioCandidate(
     string Name,
     string Address,
     Guid ContainerId,
-    string Label);
+    string Label,
+    ushort? AirPodsModelCode = null);
 
 public static class BluetoothAudioCandidateSelector
 {
@@ -33,7 +34,8 @@ public static class BluetoothAudioCandidateSelector
                 device.Name,
                 device.FormattedAddress,
                 device.ContainerId!.Value,
-                $"{device.Name}  ·  {device.FormattedAddress}"))
+                $"{device.Name}  ·  {device.FormattedAddress}",
+                device.AirPodsModelCode))
             .ToList();
 
         if (savedTarget is not null && choices.All(choice => choice.ContainerId != savedTarget.ContainerId))
@@ -42,7 +44,8 @@ public static class BluetoothAudioCandidateSelector
                 savedTarget.DisplayName,
                 savedTarget.BluetoothAddress,
                 savedTarget.ContainerId,
-                $"{savedTarget.DisplayName}  ·  {savedTarget.BluetoothAddress}  ·  已保存"));
+                $"{savedTarget.DisplayName}  ·  {savedTarget.BluetoothAddress}  ·  已保存",
+                savedTarget.AirPodsModelCode));
         }
 
         return choices;

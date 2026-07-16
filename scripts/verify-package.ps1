@@ -56,7 +56,7 @@ foreach ($dependency in @(
     @{ Name = 'PodRelay.Core'; Text = $diagnosticDependencies }
 )) {
     $expectedEntry = '"' + $dependency.Name + '/' + $expectedProductVersion + '"'
-    if (-not $dependency.Text.Contains($expectedEntry, [StringComparison]::Ordinal)) {
+    if ($dependency.Text.IndexOf($expectedEntry, [StringComparison]::Ordinal) -lt 0) {
         throw "Dependency manifest is missing the expected entry $expectedEntry."
     }
 }

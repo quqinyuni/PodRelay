@@ -25,6 +25,11 @@ public sealed class WindowsDeviceDiscovery
         "System.Devices.ContainerId"
     ];
 
+    private static readonly string[] DeviceContainerProperties =
+    [
+        "System.Devices.HardwareIds"
+    ];
+
     public async Task<RadioState?> GetBluetoothRadioStateAsync()
     {
         var radios = await Radio.GetRadiosAsync();
@@ -44,31 +49,37 @@ public sealed class WindowsDeviceDiscovery
             {
                 device = await BluetoothDevice.FromIdAsync(information.Id);
                 var properties = CopyProperties(information);
+                var containerId = GetNullableGuid(properties, "System.Devices.Aep.ContainerId");
+                var airPodsModelCode = await GetAirPodsModelCodeAsync(containerId);
 
                 snapshots.Add(new BluetoothDeviceSnapshot(
                     information.Id,
                     information.Name,
                     device?.BluetoothAddress ?? ParseBluetoothAddress(properties),
-                    GetNullableGuid(properties, "System.Devices.Aep.ContainerId"),
+                    containerId,
                     information.Pairing.IsPaired,
                     device?.ConnectionStatus == BluetoothConnectionStatus.Connected || GetBoolean(properties, "System.Devices.Aep.IsConnected"),
                     GetNullableBoolean(properties, "System.Devices.Aep.IsPresent"),
-                    properties));
+                    properties,
+                    airPodsModelCode));
             }
             catch (Exception exception)
             {
                 var properties = CopyProperties(information);
                 properties["PodRelay.EnumerationError"] = exception.Message;
+                var containerId = GetNullableGuid(properties, "System.Devices.Aep.ContainerId");
+                var airPodsModelCode = await GetAirPodsModelCodeAsync(containerId);
 
                 snapshots.Add(new BluetoothDeviceSnapshot(
                     information.Id,
                     information.Name,
                     ParseBluetoothAddress(properties),
-                    GetNullableGuid(properties, "System.Devices.Aep.ContainerId"),
+                    containerId,
                     information.Pairing.IsPaired,
                     GetBoolean(properties, "System.Devices.Aep.IsConnected"),
                     GetNullableBoolean(properties, "System.Devices.Aep.IsPresent"),
-                    properties));
+                    properties,
+                    airPodsModelCode));
             }
             finally
             {
@@ -77,6 +88,36 @@ public sealed class WindowsDeviceDiscovery
         }
 
         return snapshots;
+    }
+
+    private static async Task<ushort?> GetAirPodsModelCodeAsync(Guid? containerId)
+    {
+        if (containerId is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var container = await DeviceInformation.CreateFromIdAsync(
+                containerId.Value.ToString("B"),
+                DeviceContainerProperties,
+                DeviceInformationKind.DeviceContainer);
+            if (container is null ||
+                !container.Properties.TryGetValue("System.Devices.HardwareIds", out var value) ||
+                value is not IEnumerable<string> hardwareIds)
+            {
+                return null;
+            }
+
+            return AirPodsHardwareModel.GetAdvertisementModelCode(hardwareIds);
+        }
+        catch
+        {
+            // Product affinity is an accuracy enhancement. Device enumeration and
+            // manual connection must still work on drivers that hide this metadata.
+            return null;
+        }
     }
 
     private static async Task<DeviceInformationCollection> FindPairedDevicesAsync(string selector)

@@ -8,6 +8,7 @@ public sealed record AppSettings
     public string? TargetAddress { get; init; }
     public Guid? TargetContainerId { get; init; }
     public string? TargetDisplayName { get; init; }
+    public ushort? TargetAirPodsModelCode { get; init; }
     public bool AutoRelayEnabled { get; init; }
     public bool ConnectOnUnlock { get; init; } = true;
     public bool ReconnectOnDisconnect { get; init; } = true;
@@ -23,7 +24,11 @@ public sealed record AppSettings
 
     public TargetDevice? GetTarget() =>
         !string.IsNullOrWhiteSpace(TargetAddress) && TargetContainerId is not null
-            ? new TargetDevice(TargetAddress, TargetContainerId.Value, TargetDisplayName ?? "AirPods")
+            ? new TargetDevice(
+                TargetAddress,
+                TargetContainerId.Value,
+                TargetDisplayName ?? "AirPods",
+                TargetAirPodsModelCode)
             : null;
 
     public AutoRelaySettings GetAutoRelaySettings() => new(

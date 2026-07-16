@@ -153,6 +153,7 @@ public partial class App : System.Windows.Application
 
     private async Task ApplySettingsAsync(AppSettings updated)
     {
+        updated = await ResolveTargetAirPodsModelCodeAsync(updated);
         settings = updated;
         autoRelayPolicy = new AutoRelayPolicy(settings.GetAutoRelaySettings());
         if (!settings.InEarMediaControlEnabled)
@@ -169,6 +170,9 @@ public partial class App : System.Windows.Application
         await diagnosticLog.WriteAsync("settings.saved", new
         {
             updated.TargetDisplayName,
+            targetAirPodsModelCode = updated.TargetAirPodsModelCode is ushort modelCode
+                ? $"0x{modelCode:X4}"
+                : null,
             updated.AutoRelayEnabled,
             updated.ConnectOnUnlock,
             updated.ReconnectOnDisconnect,
@@ -189,6 +193,28 @@ public partial class App : System.Windows.Application
             {
                 await TryRelayForControllerAsync(connectedController, "SettingsApplied");
             }
+        }
+    }
+
+    private async Task<AppSettings> ResolveTargetAirPodsModelCodeAsync(AppSettings updated)
+    {
+        if (updated.TargetAirPodsModelCode is not null || updated.TargetContainerId is null)
+        {
+            return updated;
+        }
+
+        try
+        {
+            var targetDevice = (await discovery.GetPairedBluetoothDevicesAsync())
+                .FirstOrDefault(device => device.ContainerId == updated.TargetContainerId);
+            return targetDevice?.AirPodsModelCode is ushort modelCode
+                ? updated with { TargetAirPodsModelCode = modelCode }
+                : updated;
+        }
+        catch
+        {
+            // Missing product metadata must not prevent startup or manual control.
+            return updated;
         }
     }
 
@@ -251,7 +277,8 @@ public partial class App : System.Windows.Application
 
         if (!AirPodsAdvertisementClassifier.IsLikelyTargetModel(
             target.DisplayName,
-            advertisement.PublicStatus.ModelCode))
+            advertisement.PublicStatus.ModelCode,
+            target.AirPodsModelCode))
         {
             return;
         }

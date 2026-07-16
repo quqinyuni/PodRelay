@@ -79,6 +79,17 @@ public sealed class AirPodsAdvertisementClassifierTests
     }
 
     [Theory]
+    [InlineData(0x2420, true)]
+    [InlineData(0x1420, false)]
+    public void BoundModelRejectsAnotherAirPodsPro2Variant(ushort observedModelCode, bool expected)
+    {
+        Assert.Equal(expected, AirPodsAdvertisementClassifier.IsLikelyTargetModel(
+            "AirPods Pro2",
+            observedModelCode,
+            targetModelCode: 0x2420));
+    }
+
+    [Theory]
     [InlineData(AirPodsWearState.Unknown, AirPodsPresenceAction.Ignore)]
     [InlineData(AirPodsWearState.InCase, AirPodsPresenceAction.Ignore)]
     [InlineData(AirPodsWearState.OutOfCase, AirPodsPresenceAction.Prompt)]

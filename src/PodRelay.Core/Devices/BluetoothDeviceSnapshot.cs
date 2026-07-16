@@ -8,7 +8,8 @@ public sealed record BluetoothDeviceSnapshot(
     bool IsPaired,
     bool IsConnected,
     bool? IsPresent,
-    IReadOnlyDictionary<string, object?> Properties)
+    IReadOnlyDictionary<string, object?> Properties,
+    ushort? AirPodsModelCode = null)
 {
     public string FormattedAddress => string.Join(
         ":",

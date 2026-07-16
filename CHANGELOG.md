@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 - 2026-07-16
+
+- Bind AirPods wear detection to the exact Bluetooth product variant reported by Windows.
+- Prevent nearby AirPods Pro 2 Lightning (`0x1420`) frames from pausing media for a paired AirPods Pro 2 USB-C (`0x2420`), and vice versa.
+- Preserve the previous family-level fallback when a Bluetooth driver does not expose product metadata.
+- Keep release-package verification compatible with the Windows PowerShell version bundled with Windows.
+
 ## 0.1.3 - 2026-07-16
 
 - Support Windows 11's unified Bluetooth render endpoint without relying on localized endpoint names.

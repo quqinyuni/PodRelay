@@ -41,8 +41,16 @@ public static class AirPodsAdvertisementClassifier
         return true;
     }
 
-    public static bool IsLikelyTargetModel(string targetDisplayName, ushort modelCode)
+    public static bool IsLikelyTargetModel(
+        string targetDisplayName,
+        ushort modelCode,
+        ushort? targetModelCode = null)
     {
+        if (targetModelCode is not null)
+        {
+            return modelCode == targetModelCode;
+        }
+
         if (targetDisplayName.Contains("Pro2", StringComparison.OrdinalIgnoreCase) ||
             targetDisplayName.Contains("Pro 2", StringComparison.OrdinalIgnoreCase))
         {

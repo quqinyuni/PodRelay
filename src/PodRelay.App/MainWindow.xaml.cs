@@ -199,6 +199,7 @@ public partial class MainWindow : Window
             TargetAddress = choice.Address,
             TargetContainerId = choice.ContainerId,
             TargetDisplayName = choice.Name,
+            TargetAirPodsModelCode = choice.AirPodsModelCode,
             AutoRelayEnabled = AutoRelayCheck.IsChecked == true,
             ConnectOnUnlock = UnlockCheck.IsChecked == true,
             ReconnectOnDisconnect = ReconnectCheck.IsChecked == true,

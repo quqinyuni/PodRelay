@@ -1,6 +1,6 @@
 # Known limitations
 
-- Apple proximity advertisements do not provide a stable public identity that Windows can directly map to one paired AirPods set. PodRelay filters the public model code against the selected AirPods family and verifies the paired Windows target, but another nearby AirPods of the same model can still be the trigger.
+- Apple proximity advertisements do not provide a stable public identity that Windows can directly map to one paired AirPods set. PodRelay binds the public model code to the exact Apple product variant reported by the selected Windows Bluetooth device and verifies the paired Windows target, but another nearby AirPods of that exact product variant can still be the trigger. Drivers that omit Bluetooth product metadata fall back to family-level filtering.
 - Wear/case detection uses reverse-engineered public Proximity Pairing status bits. It is fail-closed for malformed/unknown frames and is verified against AirPods Pro 2 in this project, but Apple does not document this format and a future firmware can change it.
 - Battery parsing is not enabled yet. It is optional by design and cannot block connection or popup behavior.
 - `KSPROPERTY_ONESHOT_RECONNECT` and `IPolicyConfig.SetDefaultEndpoint` are Windows system contracts used by existing tools but are not documented as public application APIs. They are isolated behind Windows-specific adapters and verified after every call.

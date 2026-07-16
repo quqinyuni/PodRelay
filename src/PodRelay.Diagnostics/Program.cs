@@ -203,7 +203,11 @@ static async Task<TargetDevice?> FindTargetAsync(
         return null;
     }
 
-    return new TargetDevice(device.FormattedAddress, device.ContainerId.Value, device.Name);
+    return new TargetDevice(
+        device.FormattedAddress,
+        device.ContainerId.Value,
+        device.Name,
+        device.AirPodsModelCode);
 }
 
 static async Task WriteSnapshotAsync(WindowsDeviceDiscovery discovery)
