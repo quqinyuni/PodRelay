@@ -115,6 +115,87 @@ public sealed class AirPodsAdvertisementClassifierTests
     }
 
     [Fact]
+    public void AdvertisementGateRejectsUnknownSignalStrength()
+    {
+        var gate = new AirPodsAdvertisementConfirmationGate();
+        var now = new DateTimeOffset(2026, 7, 17, 20, 8, 0, TimeSpan.FromHours(8));
+
+        Assert.Equal(
+            AirPodsAdvertisementDecision.RejectInvalidSignal,
+            gate.Evaluate(
+                0x2420,
+                AirPodsWearState.InEar,
+                AirPodsAdvertisementConfirmationGate.UnknownSignalStrengthDbm,
+                now));
+    }
+
+    [Fact]
+    public void AdvertisementGateConfirmsActionableStateAfterInCase()
+    {
+        var gate = new AirPodsAdvertisementConfirmationGate(TimeSpan.FromSeconds(2));
+        var now = new DateTimeOffset(2026, 7, 17, 20, 8, 0, TimeSpan.FromHours(8));
+
+        Assert.Equal(
+            AirPodsAdvertisementDecision.Accept,
+            gate.Evaluate(0x2420, AirPodsWearState.InCase, -71, now));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.AwaitStateConfirmation,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -65, now.AddMilliseconds(250)));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.Accept,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -64, now.AddMilliseconds(500)));
+    }
+
+    [Fact]
+    public void AdvertisementGateDoesNotLetInvalidCachedFrameSeedConfirmation()
+    {
+        var gate = new AirPodsAdvertisementConfirmationGate(TimeSpan.FromSeconds(2));
+        var now = new DateTimeOffset(2026, 7, 17, 20, 8, 0, TimeSpan.FromHours(8));
+
+        Assert.Equal(
+            AirPodsAdvertisementDecision.Accept,
+            gate.Evaluate(0x2420, AirPodsWearState.InCase, -71, now));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.RejectInvalidSignal,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -127, now.AddSeconds(1)));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.AwaitStateConfirmation,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -65, now.AddSeconds(1.2)));
+    }
+
+    [Fact]
+    public void AdvertisementGateRequiresTimelyConsecutiveStateSamples()
+    {
+        var gate = new AirPodsAdvertisementConfirmationGate(TimeSpan.FromSeconds(2));
+        var now = new DateTimeOffset(2026, 7, 17, 20, 8, 0, TimeSpan.FromHours(8));
+
+        gate.Evaluate(0x2420, AirPodsWearState.InCase, -71, now);
+        Assert.Equal(
+            AirPodsAdvertisementDecision.AwaitStateConfirmation,
+            gate.Evaluate(0x2420, AirPodsWearState.OutOfCase, -65, now.AddMilliseconds(100)));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.AwaitStateConfirmation,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -64, now.AddMilliseconds(300)));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.AwaitStateConfirmation,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -63, now.AddSeconds(3)));
+        Assert.Equal(
+            AirPodsAdvertisementDecision.Accept,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -62, now.AddSeconds(3.2)));
+    }
+
+    [Fact]
+    public void AdvertisementGateKeepsStartupInEarConnectionResponsive()
+    {
+        var gate = new AirPodsAdvertisementConfirmationGate();
+        var now = new DateTimeOffset(2026, 7, 17, 20, 8, 0, TimeSpan.FromHours(8));
+
+        Assert.Equal(
+            AirPodsAdvertisementDecision.Accept,
+            gate.Evaluate(0x2420, AirPodsWearState.InEar, -65, now));
+    }
+
+    [Fact]
     public void DuplicateGateRaisesOnlyOncePerWindow()
     {
         var gate = new AdvertisementDuplicateGate(TimeSpan.FromSeconds(10));

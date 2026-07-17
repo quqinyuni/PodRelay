@@ -8,11 +8,13 @@ public sealed class AirPodsAdvertisementWatcher : IDisposable
 {
     private readonly BluetoothLEAdvertisementWatcher watcher;
     private readonly AdvertisementDuplicateGate duplicateGate;
+    private readonly AirPodsAdvertisementConfirmationGate confirmationGate;
     private bool disposed;
 
     public AirPodsAdvertisementWatcher(TimeSpan? duplicateWindow = null)
     {
         duplicateGate = new AdvertisementDuplicateGate(duplicateWindow ?? TimeSpan.FromSeconds(10));
+        confirmationGate = new AirPodsAdvertisementConfirmationGate();
         watcher = new BluetoothLEAdvertisementWatcher
         {
             ScanningMode = BluetoothLEScanningMode.Passive
@@ -67,6 +69,16 @@ public sealed class AirPodsAdvertisementWatcher : IDisposable
             }
 
             var now = DateTimeOffset.Now;
+            var decision = confirmationGate.Evaluate(
+                publicStatus.ModelCode,
+                publicStatus.WearState,
+                args.RawSignalStrengthInDBm,
+                now);
+            if (decision != AirPodsAdvertisementDecision.Accept)
+            {
+                return;
+            }
+
             var stateKey = $"{args.BluetoothAddress:X12}:{publicStatus.ModelCode:X4}:{publicStatus.RawStatus:X2}";
             if (!duplicateGate.TryAccept(now, stateKey))
             {
