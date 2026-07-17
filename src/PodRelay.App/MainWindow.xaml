@@ -129,6 +129,18 @@
 
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
+                        <TextBlock Text="通话与麦克风" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="应用占用 AirPods 麦克风时使用通话音频；释放麦克风约 2 秒后恢复高音质。"
+                                   Style="{StaticResource CaptionText}" Margin="0,4,0,8" />
+                        <CheckBox x:Name="AutomaticCallAudioModeCheck"
+                                  Content="自动管理 AirPods 通话模式和高音质模式" />
+                        <TextBlock Text="按麦克风会话切换，不按每句话的静音间隙切换，避免会议应用丢失麦克风。"
+                                   Style="{StaticResource CaptionText}" Margin="24,5,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
                         <TextBlock Text="客厅与手柄" Style="{StaticResource SectionTitle}" />
                         <TextBlock Text="Steam Input 可把 Guide + Y 映射到全局快捷键，无需注入游戏。"
                                    Style="{StaticResource CaptionText}" Margin="0,4,0,8" />

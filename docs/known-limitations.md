@@ -8,7 +8,8 @@
 - PodRelay can natively observe and bind a Windows `RawGameController` without intercepting its buttons. Steam Input remains the way to invoke the shortcut while a controller is already connected; native vibration is not enabled.
 - No overlay is injected into exclusive-fullscreen games.
 - A Bluetooth device can be “present” with RSSI `-128`, which means Windows has no useful live signal-strength sample. Presence and proximity remain heuristics.
-- Windows may temporarily expose both Stereo and Hands-Free endpoints. PodRelay routes output to Stereo to avoid the low-quality telephony profile.
+- Classic Bluetooth cannot carry A2DP high-quality stereo and the HFP microphone simultaneously. Automatic call audio therefore keeps HFP for the complete microphone-capture session and restores high quality only after the application releases it; switching on every silence would disconnect the application's microphone stream.
+- Core Audio session enumeration covers ordinary shared-mode capture used by mainstream meeting, recording, and game-chat applications. An application using exclusive-mode capture or a manually selected non-AirPods microphone is outside this detector.
 - The local development package is not code-signed. Windows SmartScreen or company application-control policy may require the binary to be approved by the device administrator before first launch.
 
 ## Candidate next version work

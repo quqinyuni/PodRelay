@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private readonly SettingsStore settingsStore = new();
     private readonly WindowsDeviceDiscovery discovery = new();
     private readonly WindowsConnectionPlatform platform = new();
+    private readonly WindowsBluetoothAudioController bluetoothAudio = new();
     private readonly WindowsDefaultAudioController defaultAudio = new();
     private AppSettings settings = new();
     private AutoRelayPolicy autoRelayPolicy = new(AutoRelaySettings.Default);
@@ -28,11 +29,13 @@ public partial class App : System.Windows.Application
     private AirPodsAdvertisementWatcher advertisementWatcher = null!;
     private WindowsGameControllerWatcher gameControllerWatcher = null!;
     private DispatcherTimer healthTimer = null!;
+    private DispatcherTimer callAudioTimer = null!;
     private CancellationTokenSource? activeConnectionCancellation;
     private Task<EnsureConnectionResult>? activeConnection;
     private bool sessionLocked;
     private bool exiting;
     private bool automaticCheckRunning;
+    private bool callAudioCheckRunning;
     private bool? lastObservedFullyConnected;
     private DateTimeOffset lastFullyConnectedAt = DateTimeOffset.MinValue;
     private AirPodsWearState lastAirPodsWearState = AirPodsWearState.Unknown;
@@ -42,6 +45,7 @@ public partial class App : System.Windows.Application
     private LocalDiagnosticLog diagnosticLog = null!;
     private readonly NearbyPopupGate nearbyPopupGate = new(TimeSpan.FromSeconds(30));
     private readonly EarDetectionMediaPolicy earMediaPolicy = new();
+    private readonly CallAudioModePolicy callAudioModePolicy = new(TimeSpan.FromSeconds(2));
     private readonly SystemMediaSessionService mediaSessionService = new();
     private CancellationTokenSource? pendingEarMediaCancellation;
     private Mutex? instanceMutex;
@@ -125,11 +129,14 @@ public partial class App : System.Windows.Application
         SystemEvents.SessionSwitch += OnSessionSwitch;
         healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         healthTimer.Tick += async (_, _) => await RunGuardedAsync("health.check.failed", CheckAutomaticRelayAsync);
+        callAudioTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(750) };
+        callAudioTimer.Tick += async (_, _) => await RunGuardedAsync("call-audio.check.failed", CheckCallAudioModeAsync);
 
         await ApplySettingsAsync(settings);
         advertisementWatcher.Start();
         gameControllerWatcher.Start();
         healthTimer.Start();
+        callAudioTimer.Start();
 
         if (settings.GetTarget() is null || !e.Args.Contains("--background", StringComparer.OrdinalIgnoreCase))
         {
@@ -178,6 +185,7 @@ public partial class App : System.Windows.Application
             updated.ReconnectOnDisconnect,
             updated.PopupEnabled,
             updated.InEarMediaControlEnabled,
+            updated.AutomaticCallAudioModeEnabled,
             updated.ConnectOnController,
             updated.GameControllerDisplayName,
             hotkeyRegistered
@@ -252,6 +260,7 @@ public partial class App : System.Windows.Application
             autoRelayPolicy.NotifySuccess();
             lastObservedFullyConnected = true;
             lastFullyConnectedAt = DateTimeOffset.Now;
+            await CheckCallAudioModeAsync();
         }
         else if (result.State != ConnectionState.Cancelled)
         {
@@ -676,6 +685,130 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private async Task CheckCallAudioModeAsync()
+    {
+        if (callAudioCheckRunning)
+        {
+            return;
+        }
+
+        callAudioCheckRunning = true;
+        try
+        {
+            var target = settings.GetTarget();
+            if (target is null)
+            {
+                return;
+            }
+
+            var snapshot = await Task.Run(() =>
+            {
+                var renderEndpoints = bluetoothAudio.GetEndpoints(target.ContainerId);
+                var captureEndpoints = defaultAudio.GetCaptureEndpoints(target.ContainerId)
+                    .Where(endpoint => endpoint.ContainerId == target.ContainerId)
+                    .ToArray();
+                return new CallAudioSnapshot(renderEndpoints, captureEndpoints);
+            });
+
+            var highQualityEndpoint = BluetoothRenderEndpointSelector.Select(snapshot.RenderEndpoints);
+            var callEndpoint = BluetoothCallEndpointSelector.Select(snapshot.RenderEndpoints);
+            var hasSeparateRenderProfiles = highQualityEndpoint is not null &&
+                callEndpoint is not null &&
+                highQualityEndpoint.Id != callEndpoint.Id;
+            var hasActiveCaptureSession = snapshot.CaptureEndpoints.Any(endpoint =>
+                endpoint.IsActive && endpoint.HasActiveSession);
+
+            if (settings.AutomaticCallAudioModeEnabled)
+            {
+                var captureEndpoint = snapshot.CaptureEndpoints
+                    .Where(endpoint => endpoint.IsActive)
+                    .OrderByDescending(endpoint => endpoint.IsCommunicationsDefault)
+                    .ThenBy(endpoint => endpoint.Id, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (captureEndpoint is not null && !captureEndpoint.IsDefaultForAllRoles)
+                {
+                    try
+                    {
+                        await Task.Run(() => defaultAudio.SetDefaultCaptureForAllRoles(captureEndpoint.Id));
+                        await diagnosticLog.WriteAsync("call-audio.microphone-defaulted", new
+                        {
+                            target.DisplayName,
+                            endpoint = captureEndpoint.Name,
+                            captureEndpoint.Id
+                        });
+                    }
+                    catch (Exception exception)
+                    {
+                        await LogCallAudioDeferredAsync("SetDefaultCapture", captureEndpoint.Name, exception);
+                    }
+                }
+            }
+
+            var decision = callAudioModePolicy.Evaluate(
+                settings.AutomaticCallAudioModeEnabled,
+                hasActiveCaptureSession,
+                hasSeparateRenderProfiles,
+                DateTimeOffset.Now);
+            var selectedEndpoint = decision.Action switch
+            {
+                CallAudioModeAction.EnterCallMode => callEndpoint,
+                CallAudioModeAction.RestoreHighQuality => highQualityEndpoint,
+                _ => null
+            };
+            if (selectedEndpoint is null)
+            {
+                return;
+            }
+
+            if (!selectedEndpoint.IsActive)
+            {
+                await diagnosticLog.WriteAsync("call-audio.switch-deferred", new
+                {
+                    decision.Action,
+                    decision.Reason,
+                    endpoint = selectedEndpoint.Name,
+                    reason = "The selected render endpoint is not active yet."
+                });
+                return;
+            }
+
+            try
+            {
+                await Task.Run(() => defaultAudio.SetDefaultForAllRoles(selectedEndpoint.Id));
+                callAudioModePolicy.NotifySucceeded(decision.Action);
+                await diagnosticLog.WriteAsync(
+                    decision.Action == CallAudioModeAction.EnterCallMode
+                        ? "call-audio.entered"
+                        : "call-audio.high-quality-restored",
+                    new
+                    {
+                        target.DisplayName,
+                        endpoint = selectedEndpoint.Name,
+                        selectedEndpoint.Profile,
+                        decision.Reason
+                    });
+            }
+            catch (Exception exception)
+            {
+                await LogCallAudioDeferredAsync(decision.Action.ToString(), selectedEndpoint.Name, exception);
+            }
+        }
+        finally
+        {
+            callAudioCheckRunning = false;
+        }
+    }
+
+    private Task LogCallAudioDeferredAsync(string operation, string endpoint, Exception exception) =>
+        diagnosticLog.WriteAsync("call-audio.switch-deferred", new
+        {
+            operation,
+            endpoint,
+            exception = exception.GetType().FullName,
+            exception.Message,
+            hresult = $"0x{exception.HResult:X8}"
+        });
+
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
     {
         Dispatcher.InvokeAsync(async () =>
@@ -832,6 +965,7 @@ public partial class App : System.Windows.Application
         pendingEarMediaCancellation?.Cancel();
         pendingEarMediaCancellation?.Dispose();
         healthTimer.Stop();
+        callAudioTimer.Stop();
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         advertisementWatcher.Dispose();
         gameControllerWatcher.ControllerConnected -= OnGameControllerConnected;
@@ -846,4 +980,8 @@ public partial class App : System.Windows.Application
         settingsWindow.CloseForExit();
         Shutdown();
     }
+
+    private sealed record CallAudioSnapshot(
+        IReadOnlyList<BluetoothAudioEndpoint> RenderEndpoints,
+        IReadOnlyList<CoreAudioCaptureEndpoint> CaptureEndpoints);
 }

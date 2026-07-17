@@ -14,6 +14,12 @@ Open the case or wear the earbuds. A closed sleeping case may not be connectable
 
 PodRelay binds audio endpoints by the Bluetooth association container and uses language-independent Windows metadata to choose the render endpoint. On Windows 10 it prefers the A2DP/headphones endpoint over the separate hands-free endpoint. On Windows 11 it accepts the single render endpoint that Windows unifies across A2DP and HFP. Wait a few seconds and retry; export diagnostics if the selected audio endpoint remains Unplugged/NotPresent.
 
+## AirPods audio becomes low quality during a call
+
+This is expected for classic Bluetooth. Opening the AirPods microphone changes the link from A2DP stereo to HFP call audio. PodRelay restores high quality about two seconds after the calling, recording, or voice-chat application fully releases the microphone. Muting yourself inside an application usually leaves its microphone stream open, so mute does not trigger a restore.
+
+If high quality does not return after leaving the call, confirm the application is no longer using the microphone, then close and reopen it once. Run `PodRelay.Diagnostics capture-audio` or export diagnostics and look for `call-audio.entered`, `call-audio.high-quality-restored`, and `call-audio.switch-deferred` events.
+
 ## Shortcut registration failed
 
 Another application already owns the selected shortcut or the text could not be parsed. Supported modifier names are `Control`, `Alt`, `Shift`, and `Windows`, separated by commas. The key is a WPF key name such as `A`, `F9`, or `MediaPlayPause`.

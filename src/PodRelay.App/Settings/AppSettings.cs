@@ -15,6 +15,7 @@ public sealed record AppSettings
     public int CooldownMinutes { get; init; } = 30;
     public bool PopupEnabled { get; init; } = true;
     public bool InEarMediaControlEnabled { get; init; } = true;
+    public bool AutomaticCallAudioModeEnabled { get; init; } = true;
     public bool ConnectOnController { get; init; }
     public string? GameControllerId { get; init; }
     public string? GameControllerDisplayName { get; init; }

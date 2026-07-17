@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 - 2026-07-17
+
+- Make the selected AirPods microphone the Windows default capture device while automatic call audio is enabled.
+- Detect active Core Audio capture sessions on the selected AirPods instead of treating ordinary silence as the end of a call.
+- On Windows 10 split endpoints, route playback to Hands-Free during microphone use and restore A2DP/Stereo two seconds after capture ends.
+- Leave Windows 11 unified A2DP/HFP transport selection to the operating system while retaining microphone-session diagnostics.
+- Add a `capture-audio` diagnostic command and regression coverage for endpoint selection, call entry, session rebuilds, delayed restore, and opt-out behavior.
+
 ## 0.1.4 - 2026-07-16
 
 - Bind AirPods wear detection to the exact Bluetooth product variant reported by Windows.

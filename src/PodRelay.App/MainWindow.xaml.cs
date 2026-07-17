@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         CooldownText.Text = settings.CooldownMinutes.ToString();
         PopupCheck.IsChecked = settings.PopupEnabled;
         InEarMediaControlCheck.IsChecked = settings.InEarMediaControlEnabled;
+        AutomaticCallAudioModeCheck.IsChecked = settings.AutomaticCallAudioModeEnabled;
         ControllerRelayCheck.IsChecked = settings.ConnectOnController;
         StartupCheck.IsChecked = settings.StartWithWindows;
         ModifiersText.Text = settings.HotkeyModifiers;
@@ -206,6 +207,7 @@ public partial class MainWindow : Window
             CooldownMinutes = cooldown,
             PopupEnabled = PopupCheck.IsChecked == true,
             InEarMediaControlEnabled = InEarMediaControlCheck.IsChecked == true,
+            AutomaticCallAudioModeEnabled = AutomaticCallAudioModeCheck.IsChecked == true,
             ConnectOnController = ControllerRelayCheck.IsChecked == true,
             GameControllerId = controllerChoice?.Id,
             GameControllerDisplayName = controllerChoice?.Name,

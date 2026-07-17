@@ -51,8 +51,11 @@ try
         case "default-audio":
             WriteJson(new WindowsDefaultAudioController().GetRenderEndpoints());
             return 0;
+        case "capture-audio":
+            WriteJson(new WindowsDefaultAudioController().GetCaptureEndpoints());
+            return 0;
         default:
-            Console.Error.WriteLine("Usage: PodRelay.Diagnostics [snapshot|list-bluetooth|list-audio|list-bluetooth-audio|list-game-controllers|default-audio|status --address XX:XX:XX:XX:XX:XX|connect --address XX:XX:XX:XX:XX:XX|disconnect --address XX:XX:XX:XX:XX:XX --confirm|watch-airpods --seconds 20]");
+            Console.Error.WriteLine("Usage: PodRelay.Diagnostics [snapshot|list-bluetooth|list-audio|list-bluetooth-audio|list-game-controllers|default-audio|capture-audio|status --address XX:XX:XX:XX:XX:XX|connect --address XX:XX:XX:XX:XX:XX|disconnect --address XX:XX:XX:XX:XX:XX --confirm|watch-airpods --seconds 20]");
             return 2;
     }
 }

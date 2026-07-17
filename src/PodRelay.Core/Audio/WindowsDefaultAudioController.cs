@@ -8,22 +8,56 @@ using static Vanara.PInvoke.CoreAudio;
 namespace PodRelay.Core.Audio;
 
 /// <summary>
-/// Reads Core Audio render endpoints and changes the system defaults.
-/// Windows exposes default selection to its own UI through the undocumented
-/// IPolicyConfig COM contract, so the setter is kept isolated here.
+/// Reads Core Audio endpoints and changes the system defaults. Windows exposes
+/// default selection to its own UI through the undocumented IPolicyConfig COM
+/// contract, so the setter is kept isolated here.
 /// </summary>
 public sealed class WindowsDefaultAudioController
 {
-    public IReadOnlyList<CoreAudioRenderEndpoint> GetRenderEndpoints()
+    public IReadOnlyList<CoreAudioRenderEndpoint> GetRenderEndpoints() =>
+        GetEndpoints(EDataFlow.eRender, inspectSessions: false)
+            .Select(endpoint => new CoreAudioRenderEndpoint(
+                endpoint.Id,
+                endpoint.Name,
+                endpoint.ContainerId,
+                endpoint.State,
+                endpoint.IsConsoleDefault,
+                endpoint.IsMultimediaDefault,
+                endpoint.IsCommunicationsDefault))
+            .ToArray();
+
+    public IReadOnlyList<CoreAudioCaptureEndpoint> GetCaptureEndpoints(Guid? sessionContainerId = null) =>
+        GetEndpoints(EDataFlow.eCapture, inspectSessions: true, sessionContainerId: sessionContainerId)
+            .Select(endpoint => new CoreAudioCaptureEndpoint(
+                endpoint.Id,
+                endpoint.Name,
+                endpoint.ContainerId,
+                endpoint.State,
+                endpoint.IsConsoleDefault,
+                endpoint.IsMultimediaDefault,
+                endpoint.IsCommunicationsDefault,
+                endpoint.HasActiveSession))
+            .ToArray();
+
+    public void SetDefaultForAllRoles(string endpointId) =>
+        SetDefaultForAllRoles(endpointId, EDataFlow.eRender, "render");
+
+    public void SetDefaultCaptureForAllRoles(string endpointId) =>
+        SetDefaultForAllRoles(endpointId, EDataFlow.eCapture, "capture");
+
+    private static IReadOnlyList<CoreAudioEndpointData> GetEndpoints(
+        EDataFlow flow,
+        bool inspectSessions,
+        Guid? sessionContainerId = null)
     {
-        var results = new List<CoreAudioRenderEndpoint>();
+        var results = new List<CoreAudioEndpointData>();
         IMMDeviceEnumerator enumerator;
         IMMDeviceCollection collection;
         uint endpointCount;
         try
         {
             enumerator = new IMMDeviceEnumerator();
-            collection = enumerator.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.DEVICE_STATEMASK_ALL);
+            collection = enumerator.EnumAudioEndpoints(flow, DEVICE_STATE.DEVICE_STATEMASK_ALL);
             endpointCount = collection.GetCount();
         }
         catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
@@ -33,9 +67,9 @@ public sealed class WindowsDefaultAudioController
 
         var defaults = new Dictionary<AudioRole, string>
         {
-            [AudioRole.Console] = TryGetDefaultId(enumerator, ERole.eConsole),
-            [AudioRole.Multimedia] = TryGetDefaultId(enumerator, ERole.eMultimedia),
-            [AudioRole.Communications] = TryGetDefaultId(enumerator, ERole.eCommunications)
+            [AudioRole.Console] = TryGetDefaultId(enumerator, flow, ERole.eConsole),
+            [AudioRole.Multimedia] = TryGetDefaultId(enumerator, flow, ERole.eMultimedia),
+            [AudioRole.Communications] = TryGetDefaultId(enumerator, flow, ERole.eCommunications)
         };
 
         for (uint index = 0; index < endpointCount; index++)
@@ -58,31 +92,40 @@ public sealed class WindowsDefaultAudioController
                 var name = TryGetProperty(store, DevicePropertyKeys.FriendlyName)?.ToString() ?? id;
                 var containerValue = TryGetProperty(store, Ole32.PROPERTYKEY.System.Devices.ContainerId);
                 var containerId = containerValue is Guid guid ? guid : Guid.Empty;
-                results.Add(new CoreAudioRenderEndpoint(
+                var isActive = endpoint.GetState() == DEVICE_STATE.DEVICE_STATE_ACTIVE;
+                results.Add(new CoreAudioEndpointData(
                     id,
                     name,
                     containerId,
                     FormatState(endpoint.GetState()),
                     id == defaults[AudioRole.Console],
                     id == defaults[AudioRole.Multimedia],
-                    id == defaults[AudioRole.Communications]));
+                    id == defaults[AudioRole.Communications],
+                    inspectSessions &&
+                        isActive &&
+                        (sessionContainerId is null || sessionContainerId == containerId) &&
+                        HasActiveSharedModeSession(endpoint)));
             }
             catch (Exception exception) when (WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
             {
-                // Ignore a stale endpoint without hiding the remaining render devices.
+                // Ignore a stale endpoint without hiding the remaining devices.
             }
         }
 
         return results;
     }
 
-    public void SetDefaultForAllRoles(string endpointId)
+    private static void SetDefaultForAllRoles(
+        string endpointId,
+        EDataFlow flow,
+        string endpointKind)
     {
-        var endpoint = GetRenderEndpoints().SingleOrDefault(candidate => candidate.Id == endpointId)
-            ?? throw new ArgumentException($"Unknown render endpoint '{endpointId}'.", nameof(endpointId));
-        if (!endpoint.IsActive)
+        var endpoint = GetEndpoints(flow, inspectSessions: false)
+            .SingleOrDefault(candidate => candidate.Id == endpointId)
+            ?? throw new ArgumentException($"Unknown {endpointKind} endpoint '{endpointId}'.", nameof(endpointId));
+        if (endpoint.State != "Active")
         {
-            throw new InvalidOperationException($"Render endpoint '{endpoint.Name}' is not active.");
+            throw new InvalidOperationException($"{char.ToUpperInvariant(endpointKind[0])}{endpointKind[1..]} endpoint '{endpoint.Name}' is not active.");
         }
 
         var policyType = Type.GetTypeFromCLSID(new Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9"))
@@ -94,11 +137,45 @@ public sealed class WindowsDefaultAudioController
         Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(endpointId, AudioRole.Communications));
     }
 
-    private static string TryGetDefaultId(IMMDeviceEnumerator enumerator, ERole role)
+    private static bool HasActiveSharedModeSession(IMMDevice endpoint)
     {
         try
         {
-            return enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, role)?.GetId();
+            endpoint.Activate(
+                typeof(IAudioSessionManager2).GUID,
+                Ole32.CLSCTX.CLSCTX_ALL,
+                null,
+                out var managerObject);
+            if (managerObject is not IAudioSessionManager2 manager)
+            {
+                return false;
+            }
+
+            var sessions = manager.GetSessionEnumerator();
+            var count = sessions.GetCount();
+            for (var index = 0; index < count; index++)
+            {
+                var session = sessions.GetSession(index);
+                if (session?.GetState() == AudioSessionState.AudioSessionStateActive)
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception exception) when (
+            exception is COMException || WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
+        {
+            // An endpoint can disappear while Bluetooth changes transport.
+        }
+
+        return false;
+    }
+
+    private static string TryGetDefaultId(IMMDeviceEnumerator enumerator, EDataFlow flow, ERole role)
+    {
+        try
+        {
+            return enumerator.GetDefaultAudioEndpoint(flow, role)?.GetId();
         }
         catch (Exception exception) when (
             exception is COMException || WindowsDeviceFailure.IsRemovedOrInvalidated(exception))
@@ -128,6 +205,16 @@ public sealed class WindowsDefaultAudioController
             return null;
         }
     }
+
+    private sealed record CoreAudioEndpointData(
+        string Id,
+        string Name,
+        Guid ContainerId,
+        string State,
+        bool IsConsoleDefault,
+        bool IsMultimediaDefault,
+        bool IsCommunicationsDefault,
+        bool HasActiveSession);
 
     private static class DevicePropertyKeys
     {
